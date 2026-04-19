@@ -7,9 +7,52 @@ function getApiUrl() {
     const urlParams = new URLSearchParams(window.location.search);
     const apiParam = urlParams.get('api');
     if (apiParam) return apiParam.replace(/\/$/, "");
-    return window.location.origin;
+    return null; // No kiosk connected
 }
 const API = getApiUrl();
+
+// ── Guard: Show "Scan QR" screen if no Kiosk API is connected ──
+if (!API) {
+    document.addEventListener('DOMContentLoaded', () => {
+        const container = document.querySelector('.app-container');
+        if (container) {
+            container.innerHTML = `
+                <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 20px;">
+                    <div style="font-size:5rem;margin-bottom:20px;animation:float 3s ease-in-out infinite;">📷</div>
+                    <h1 style="font-size:1.8rem;font-weight:900;margin-bottom:12px;background:linear-gradient(135deg,#00C2FF,#A855F7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Scan the QR Code</h1>
+                    <p style="color:#8B949E;font-size:0.95rem;max-width:340px;line-height:1.6;margin-bottom:32px;">
+                        This page requires a connection to a <strong style="color:#E6EDF3;">SnapPark Kiosk</strong>. 
+                        Visit any SnapPark-enabled parking lot and scan the QR code displayed on the Kiosk screen to get started.
+                    </p>
+                    <div style="background:#0D1117;border:1px solid #21262D;border-radius:14px;padding:24px 28px;max-width:320px;width:100%;">
+                        <div style="font-size:0.7rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#484F58;margin-bottom:16px;">How It Works</div>
+                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;text-align:left;">
+                            <span style="font-size:1.3rem;">🏢</span>
+                            <span style="font-size:0.8rem;color:#8B949E;">Drive to a SnapPark parking lot</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;text-align:left;">
+                            <span style="font-size:1.3rem;">📱</span>
+                            <span style="font-size:0.8rem;color:#8B949E;">Scan the QR code on the Kiosk</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:12px;text-align:left;">
+                            <span style="font-size:1.3rem;">🚗</span>
+                            <span style="font-size:0.8rem;color:#8B949E;">Pick your slot and park instantly</span>
+                        </div>
+                    </div>
+                    <a href="/" style="margin-top:28px;color:#00C2FF;text-decoration:none;font-size:0.85rem;font-weight:600;">← Back to SnapPark Home</a>
+                </div>
+                <style>
+                    @keyframes float {
+                        0%, 100% { transform: translateY(0px); }
+                        50% { transform: translateY(-15px); }
+                    }
+                </style>
+            `;
+        }
+    });
+    // Stop all further JS execution
+    throw new Error('No Kiosk API connected — showing scan QR screen');
+}
 
 // ── State ──
 let selectedType   = 'CAR';
