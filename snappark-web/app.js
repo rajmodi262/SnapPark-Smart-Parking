@@ -38,7 +38,7 @@ function initEntryPage() {
 // ── Fetch Rates ──
 async function fetchRates() {
     try {
-        const res = await fetch(`${API}/api/rates`);
+        const res = await fetch(`${API}/api/rates`, { headers: { 'ngrok-skip-browser-warning': '1' } });
         ratesData = await res.json();
         updateRateDisplay();
         updateStatsBar();
@@ -113,7 +113,7 @@ async function decodePlate(plate) {
     const badge = document.getElementById('plateBadge');
     if (plate.length < 2) { badge.innerHTML = ''; return; }
     try {
-        const res = await fetch(`${API}/api/validate-plate?plate=${encodeURIComponent(plate)}`);
+        const res = await fetch(`${API}/api/validate-plate?plate=${encodeURIComponent(plate)}`, { headers: { 'ngrok-skip-browser-warning': '1' } });
         const data = await res.json();
         if (data.valid) {
             badge.innerHTML = `<div class="plate-badge valid">
@@ -186,7 +186,7 @@ function goToStep(n) {
 // ── Slot Grid ──
 async function loadSlotGrid() {
     try {
-        const res = await fetch(`${API}/api/slots`);
+        const res = await fetch(`${API}/api/slots`, { headers: { 'ngrok-skip-browser-warning': '1' } });
         slotsData = await res.json();
         renderSlotGrid();
     } catch (e) {
@@ -280,7 +280,7 @@ function selectSlot(cell) {
 async function loadRecommendations() {
     try {
         const floor = 1; // default
-        const res = await fetch(`${API}/api/slots/recommend?type=${selectedType}&floor=${floor}`);
+        const res = await fetch(`${API}/api/slots/recommend?type=${selectedType}&floor=${floor}`, { headers: { 'ngrok-skip-browser-warning': '1' } });
         const recs = await res.json();
         if (recs.length === 0) {
             document.getElementById('recCard').style.display = 'none';
@@ -327,7 +327,10 @@ async function doCheckin() {
     try {
         const res = await fetch(`${API}/api/checkin`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': '1'
+            },
             body: JSON.stringify({
                 phone: phone,
                 plate: plate,
@@ -437,7 +440,10 @@ async function doLookup() {
     try {
         const res = await fetch(`${API}/api/lookup-session`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': '1'
+            },
             body: JSON.stringify({ plate: plate, pin: pin })
         });
         const data = await res.json();
@@ -547,7 +553,10 @@ async function doCheckout() {
     try {
         const res = await fetch(`${API}/api/checkout`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': '1'
+            },
             body: JSON.stringify({
                 sessionId: sessionData.sessionId,
                 paymentMethod: method
