@@ -1,0 +1,8 @@
+target/
+.idea/
+*.class
+*.jar
+*.db
+.vscode/
+node_modules/
+.vercel

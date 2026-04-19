@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.shape.*?>
+
+<BorderPane xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.snappark.controller.DashboardController"
+            styleClass="root-pane">
+    <left>
+        <VBox styleClass="sidebar" spacing="0">
+            <!-- Logo -->
+            <VBox style="-fx-padding: 22 20 10 20;" spacing="2">
+                <Label text="SnapPark" styleClass="sidebar-title"/>
+                <Label fx:id="clockLabel" text="00:00:00" styleClass="live-clock"/>
+            </VBox>
+
+            <!-- Active sessions indicator -->
+            <HBox style="-fx-padding: 6 20 12 20;" spacing="8" alignment="CENTER_LEFT">
+                <Label styleClass="pulse-dot"/>
+                <Label fx:id="activeSessionsLabel" text="0 active sessions"
+                       style="-fx-text-fill: #00FF88; -fx-font-size: 11px; -fx-font-family: monospace;"/>
+            </HBox>
+
+            <Label text="NAVIGATION"
+                   style="-fx-text-fill: #1E3A5F; -fx-font-size: 10px; -fx-padding: 8 20 6 20; -fx-font-family: monospace;"/>
+
+            <Button fx:id="btnDashboard" text="  Dashboard"   styleClass="nav-btn-v2" onAction="#showDashboard"/>
+            <Button fx:id="btnSlots"     text="  Parking Grid" styleClass="nav-btn-v2" onAction="#showSlots"/>
+            <Button fx:id="btnEntry"     text="  Vehicle Entry" styleClass="nav-btn-v2" onAction="#showEntry"/>
+            <Button fx:id="btnExit"      text="  Vehicle Exit"  styleClass="nav-btn-v2" onAction="#showExit"/>
+            <Button fx:id="btnAnalytics" text="  Analytics"    styleClass="nav-btn-v2" onAction="#showAnalytics"/>
+
+            <VBox VBox.vgrow="ALWAYS"/>
+
+            <Button text="  Logout" styleClass="nav-btn-v2" onAction="#handleLogout"
+                    style="-fx-text-fill: #FF4466; -fx-border-color: #FF4466; -fx-padding: 12 20 12 20;"/>
+            <Label fx:id="userLabel" text=""
+                   style="-fx-text-fill: #334155; -fx-font-size: 11px; -fx-padding: 10 20 14 20; -fx-font-family: monospace;"/>
+        </VBox>
+    </left>
+    <center>
+        <StackPane fx:id="contentArea" styleClass="content-area"/>
+    </center>
+</BorderPane>

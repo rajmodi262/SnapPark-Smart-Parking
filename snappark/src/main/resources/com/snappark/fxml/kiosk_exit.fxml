@@ -1,0 +1,336 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.*?>
+<?import javafx.scene.canvas.*?>
+<?import javafx.scene.shape.*?>
+
+<StackPane xmlns:fx="http://javafx.com/fxml"
+           fx:controller="com.snappark.controller.KioskExitController"
+           fx:id="rootPane" style="-fx-background-color:#05080F;">
+
+    <!-- STEP 1: Enter Ticket ID -->
+    <VBox fx:id="step1" spacing="0">
+        <HBox style="-fx-background-color:#0A0F1A;-fx-border-color:#FF2244;-fx-border-width:0 0 1 0;-fx-padding:10 20 10 20;"
+              alignment="CENTER_LEFT" spacing="14">
+            <Button text="BACK" onAction="#handleBack"
+                    style="-fx-background-color:transparent;-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-cursor:hand;-fx-border-color:#334155;-fx-border-width:1;-fx-background-radius:4;-fx-border-radius:4;-fx-padding:5 14 5 14;"/>
+            <Label text="[ 1 / 4 ]" style="-fx-text-fill:#334155;-fx-font-family:monospace;-fx-font-size:12px;"/>
+            <Label text="EXIT PARKING - ENTER TICKET ID"
+                   style="-fx-text-fill:#FF2244;-fx-font-size:16px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-effect:dropshadow(gaussian,#FF2244,8,0.4,0,0);"/>
+        </HBox>
+        <StackPane VBox.vgrow="ALWAYS" alignment="CENTER" style="-fx-background-color:#05080F;">
+            <VBox spacing="20" alignment="CENTER" style="-fx-max-width:420;">
+                <Label text="ENTER YOUR TICKET NUMBER"
+                       style="-fx-text-fill:#94a3b8;-fx-font-family:monospace;-fx-font-size:13px;"/>
+                <VBox alignment="CENTER" spacing="4"
+                      style="-fx-background-color:#0D1525;-fx-background-radius:12;-fx-border-color:#FF2244;-fx-border-radius:12;-fx-border-width:1;-fx-padding:20 30 20 30;-fx-effect:dropshadow(gaussian,#FF2244,10,0.3,0,0);">
+                    <Label text="TKT -" style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-font-size:13px;"/>
+                    <Label fx:id="ticketDisplay" text="_ _ _ _ _"
+                           style="-fx-text-fill:#FF2244;-fx-font-size:40px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-effect:dropshadow(gaussian,#FF2244,8,0.4,0,0);"/>
+                </VBox>
+                <VBox spacing="10">
+                    <HBox spacing="10" alignment="CENTER">
+                        <Button text="1" onAction="#num1" style="-fx-min-width:110;-fx-min-height:70;-fx-font-size:26px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="2" onAction="#num2" style="-fx-min-width:110;-fx-min-height:70;-fx-font-size:26px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="3" onAction="#num3" style="-fx-min-width:110;-fx-min-height:70;-fx-font-size:26px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                    </HBox>
+                    <HBox spacing="10" alignment="CENTER">
+                        <Button text="4" onAction="#num4" style="-fx-min-width:110;-fx-min-height:70;-fx-font-size:26px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="5" onAction="#num5" style="-fx-min-width:110;-fx-min-height:70;-fx-font-size:26px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="6" onAction="#num6" style="-fx-min-width:110;-fx-min-height:70;-fx-font-size:26px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                    </HBox>
+                    <HBox spacing="10" alignment="CENTER">
+                        <Button text="7" onAction="#num7" style="-fx-min-width:110;-fx-min-height:70;-fx-font-size:26px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="8" onAction="#num8" style="-fx-min-width:110;-fx-min-height:70;-fx-font-size:26px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="9" onAction="#num9" style="-fx-min-width:110;-fx-min-height:70;-fx-font-size:26px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                    </HBox>
+                    <HBox spacing="10" alignment="CENTER">
+                        <Button text="CLR" onAction="#numClear" style="-fx-min-width:110;-fx-min-height:70;-fx-font-size:18px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#1A0A0A;-fx-text-fill:#FF2244;-fx-border-color:#FF2244;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="0"   onAction="#num0"    style="-fx-min-width:110;-fx-min-height:70;-fx-font-size:26px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="DEL" onAction="#numDel"  style="-fx-min-width:110;-fx-min-height:70;-fx-font-size:18px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#1A0A0A;-fx-text-fill:#FF2244;-fx-border-color:#FF2244;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                    </HBox>
+                </VBox>
+                <Label fx:id="exitStatus" text=""
+                       style="-fx-text-fill:#FF2244;-fx-font-family:monospace;-fx-font-size:12px;"/>
+                <Button text="FIND MY TICKET" onAction="#handleFind" maxWidth="Infinity"
+                        style="-fx-background-color:#2D0010;-fx-text-fill:#FF2244;-fx-font-size:20px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-radius:12;-fx-border-color:#FF2244;-fx-border-radius:12;-fx-border-width:2;-fx-cursor:hand;-fx-min-height:62;-fx-effect:dropshadow(gaussian,#FF2244,14,0.5,0,0);"/>
+            </VBox>
+        </StackPane>
+    </VBox>
+
+    <!-- STEP 2: Bill -->
+    <VBox fx:id="step2" visible="false" managed="false" spacing="0">
+        <HBox style="-fx-background-color:#0A0F1A;-fx-border-color:#FF2244;-fx-border-width:0 0 1 0;-fx-padding:10 20 10 20;"
+              alignment="CENTER_LEFT" spacing="14">
+            <Button text="BACK" onAction="#handleStep2Back"
+                    style="-fx-background-color:transparent;-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-cursor:hand;-fx-border-color:#334155;-fx-border-width:1;-fx-background-radius:4;-fx-border-radius:4;-fx-padding:5 14 5 14;"/>
+            <Label text="[ 2 / 4 ]" style="-fx-text-fill:#334155;-fx-font-family:monospace;-fx-font-size:12px;"/>
+            <Label text="YOUR PARKING BILL"
+                   style="-fx-text-fill:#FF2244;-fx-font-size:16px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+        </HBox>
+        <StackPane VBox.vgrow="ALWAYS" alignment="CENTER" style="-fx-background-color:#05080F;">
+            <VBox spacing="18" alignment="CENTER" style="-fx-max-width:500;-fx-padding:32;">
+                <VBox spacing="12"
+                      style="-fx-background-color:#0D1525;-fx-background-radius:16;-fx-border-color:#FF2244;-fx-border-radius:16;-fx-border-width:1;-fx-padding:28;-fx-effect:dropshadow(gaussian,#FF2244,12,0.3,0,0);">
+                    <Label text="[ BILLING DETAILS ]"
+                           style="-fx-text-fill:#FF2244;-fx-font-family:monospace;-fx-font-size:13px;-fx-font-weight:bold;"/>
+                    <HBox><Label text="Vehicle  : " style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-min-width:120;"/>
+                          <Label fx:id="billPlate" style="-fx-text-fill:#E2E8F0;-fx-font-family:monospace;-fx-font-size:15px;-fx-font-weight:bold;"/></HBox>
+                    <HBox><Label text="Owner    : " style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-min-width:120;"/>
+                          <Label fx:id="billOwner" style="-fx-text-fill:#E2E8F0;-fx-font-family:monospace;-fx-font-size:15px;-fx-font-weight:bold;"/></HBox>
+                    <HBox><Label text="Slot     : " style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-min-width:120;"/>
+                          <Label fx:id="billSlot" style="-fx-text-fill:#00C2FF;-fx-font-family:monospace;-fx-font-size:15px;"/></HBox>
+                    <HBox><Label text="Entry    : " style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-min-width:120;"/>
+                          <Label fx:id="billEntry" style="-fx-text-fill:#E2E8F0;-fx-font-family:monospace;-fx-font-size:13px;"/></HBox>
+                    <HBox><Label text="Duration : " style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-min-width:120;"/>
+                          <Label fx:id="billDuration" style="-fx-text-fill:#FFB800;-fx-font-weight:bold;-fx-font-family:monospace;-fx-font-size:15px;"/></HBox>
+                    <HBox><Label text="TOTAL    : " style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-min-width:120;"/>
+                          <Label fx:id="billTotal" style="-fx-text-fill:#00FF88;-fx-font-size:32px;-fx-font-weight:bold;-fx-font-family:monospace;"/></HBox>
+                </VBox>
+                <Button text="PROCEED TO PAYMENT" onAction="#handleProceedToPayment" maxWidth="Infinity"
+                        style="-fx-background-color:#00FF88;-fx-text-fill:#0A1A0A;-fx-font-size:18px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-radius:12;-fx-border-color:#00C060;-fx-border-radius:12;-fx-border-width:2;-fx-cursor:hand;-fx-min-height:62;"/>
+            </VBox>
+        </StackPane>
+    </VBox>
+
+    <!-- STEP 3: Choose Payment Method -->
+    <VBox fx:id="step3" visible="false" managed="false" spacing="0">
+        <HBox style="-fx-background-color:#0A0F1A;-fx-border-color:#FFB800;-fx-border-width:0 0 1 0;-fx-padding:10 20 10 20;"
+              alignment="CENTER_LEFT" spacing="14">
+            <Button text="BACK" onAction="#handleStep3Back"
+                    style="-fx-background-color:transparent;-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-cursor:hand;-fx-border-color:#334155;-fx-border-width:1;-fx-background-radius:4;-fx-border-radius:4;-fx-padding:5 14 5 14;"/>
+            <Label text="[ 3 / 4 ]" style="-fx-text-fill:#334155;-fx-font-family:monospace;-fx-font-size:12px;"/>
+            <Label text="CHOOSE PAYMENT METHOD"
+                   style="-fx-text-fill:#FFB800;-fx-font-size:16px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-effect:dropshadow(gaussian,#FFB800,6,0.4,0,0);"/>
+            <HBox HBox.hgrow="ALWAYS"/>
+            <Label fx:id="payAmountHeader" text=""
+                   style="-fx-text-fill:#00FF88;-fx-font-size:20px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+        </HBox>
+        <StackPane VBox.vgrow="ALWAYS" alignment="CENTER" style="-fx-background-color:#05080F;">
+            <VBox spacing="24" alignment="CENTER" style="-fx-max-width:700;-fx-padding:32;">
+                <Label text="SELECT HOW YOU WANT TO PAY"
+                       style="-fx-text-fill:#94a3b8;-fx-font-family:monospace;-fx-font-size:14px;"/>
+                <HBox spacing="28" alignment="CENTER">
+
+                    <!-- CASH option -->
+                    <VBox spacing="16" alignment="CENTER" onMouseClicked="#selectCash"
+                          fx:id="cashCard"
+                          style="-fx-background-color:#0D1525;-fx-background-radius:18;-fx-border-color:#FFB800;-fx-border-radius:18;-fx-border-width:2;-fx-padding:32;-fx-cursor:hand;-fx-min-width:280;-fx-effect:dropshadow(gaussian,#FFB800,14,0.4,0,0);">
+                        <Label text="CASH" style="-fx-text-fill:#FFB800;-fx-font-size:36px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+                        <Label text="Pay at counter" style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-font-size:13px;"/>
+                        <Label text="Hand cash to attendant" style="-fx-text-fill:#94a3b8;-fx-font-family:monospace;-fx-font-size:11px;"/>
+                        <Label fx:id="cashAmountLabel" text=""
+                               style="-fx-text-fill:#FFB800;-fx-font-size:22px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+                    </VBox>
+
+                    <Label text="or" style="-fx-text-fill:#334155;-fx-font-family:monospace;-fx-font-size:18px;"/>
+
+                    <!-- UPI option -->
+                    <VBox spacing="16" alignment="CENTER" onMouseClicked="#selectUPI"
+                          fx:id="upiCard"
+                          style="-fx-background-color:#0D1525;-fx-background-radius:18;-fx-border-color:#7C3AED;-fx-border-radius:18;-fx-border-width:2;-fx-padding:32;-fx-cursor:hand;-fx-min-width:280;-fx-effect:dropshadow(gaussian,#7C3AED,14,0.4,0,0);">
+                        <Label text="UPI" style="-fx-text-fill:#7C3AED;-fx-font-size:36px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+                        <Label text="Scan &amp; Pay" style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-font-size:13px;"/>
+                        <Label text="PhonePe / GPay / Paytm" style="-fx-text-fill:#94a3b8;-fx-font-family:monospace;-fx-font-size:11px;"/>
+                        <Label fx:id="upiAmountLabel" text=""
+                               style="-fx-text-fill:#7C3AED;-fx-font-size:22px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+                    </VBox>
+                </HBox>
+            </VBox>
+        </StackPane>
+    </VBox>
+
+    <!-- STEP 3A: Cash Payment Screen -->
+    <VBox fx:id="step3cash" visible="false" managed="false" spacing="0">
+        <HBox style="-fx-background-color:#0A0F1A;-fx-border-color:#FFB800;-fx-border-width:0 0 1 0;-fx-padding:10 20 10 20;"
+              alignment="CENTER_LEFT" spacing="14">
+            <Button text="BACK" onAction="#handleStep3CashBack"
+                    style="-fx-background-color:transparent;-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-cursor:hand;-fx-border-color:#334155;-fx-border-width:1;-fx-background-radius:4;-fx-border-radius:4;-fx-padding:5 14 5 14;"/>
+            <Label text="CASH PAYMENT"
+                   style="-fx-text-fill:#FFB800;-fx-font-size:16px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+        </HBox>
+        <StackPane VBox.vgrow="ALWAYS" alignment="CENTER" style="-fx-background-color:#05080F;">
+            <VBox spacing="24" alignment="CENTER" style="-fx-max-width:500;-fx-padding:40;">
+                <VBox spacing="16" alignment="CENTER"
+                      style="-fx-background-color:#0D1525;-fx-background-radius:18;-fx-border-color:#FFB800;-fx-border-radius:18;-fx-border-width:2;-fx-padding:36;-fx-effect:dropshadow(gaussian,#FFB800,16,0.4,0,0);">
+                    <Label text="AMOUNT TO COLLECT"
+                           style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-font-size:13px;"/>
+                    <Label fx:id="cashPayLabel" text="Rs. 0"
+                           style="-fx-text-fill:#FFB800;-fx-font-size:56px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+                    <Label text="Please hand this amount to the attendant"
+                           style="-fx-text-fill:#94a3b8;-fx-font-family:monospace;-fx-font-size:12px;"/>
+                </VBox>
+                <Label text="Attendant: tap CONFIRM once cash is received"
+                       style="-fx-text-fill:#334155;-fx-font-family:monospace;-fx-font-size:12px;"/>
+                <Button text="CONFIRM CASH RECEIVED" onAction="#handleCashConfirm" maxWidth="Infinity"
+                        style="-fx-background-color:#FFB800;-fx-text-fill:#0A0F1A;-fx-font-size:18px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-radius:12;-fx-border-color:#FFB800;-fx-border-radius:12;-fx-border-width:2;-fx-cursor:hand;-fx-min-height:62;"/>
+            </VBox>
+        </StackPane>
+    </VBox>
+
+    <!-- STEP 3B: UPI Payment Screen -->
+    <VBox fx:id="step3upi" visible="false" managed="false" spacing="0">
+        <HBox style="-fx-background-color:#0A0F1A;-fx-border-color:#7C3AED;-fx-border-width:0 0 1 0;-fx-padding:10 20 10 20;"
+              alignment="CENTER_LEFT" spacing="14">
+            <Button text="BACK" onAction="#handleStep3UPIBack"
+                    style="-fx-background-color:transparent;-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-cursor:hand;-fx-border-color:#334155;-fx-border-width:1;-fx-background-radius:4;-fx-border-radius:4;-fx-padding:5 14 5 14;"/>
+            <Label text="UPI PAYMENT"
+                   style="-fx-text-fill:#7C3AED;-fx-font-size:16px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-effect:dropshadow(gaussian,#7C3AED,6,0.4,0,0);"/>
+            <HBox HBox.hgrow="ALWAYS"/>
+            <Label fx:id="upiTimerLabel" text=""
+                   style="-fx-text-fill:#FF2244;-fx-font-family:monospace;-fx-font-size:12px;"/>
+        </HBox>
+        <StackPane VBox.vgrow="ALWAYS" alignment="CENTER" style="-fx-background-color:#05080F;">
+            <HBox spacing="40" alignment="CENTER" style="-fx-padding:32;">
+                <!-- QR side -->
+                <VBox spacing="14" alignment="CENTER"
+                      style="-fx-background-color:#0D1525;-fx-background-radius:18;-fx-border-color:#7C3AED;-fx-border-radius:18;-fx-border-width:1;-fx-padding:28;-fx-effect:dropshadow(gaussian,#7C3AED,14,0.4,0,0);">
+                    <Label text="SCAN TO PAY"
+                           style="-fx-text-fill:#7C3AED;-fx-font-family:monospace;-fx-font-size:13px;-fx-font-weight:bold;"/>
+                    <ImageView fx:id="upiQRView" fitWidth="220" fitHeight="220" preserveRatio="true"/>
+                    <Label text="PhonePe / GPay / Paytm / Any UPI"
+                           style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-font-size:11px;"/>
+                    <Label fx:id="upiPayLabel" text=""
+                           style="-fx-text-fill:#7C3AED;-fx-font-size:24px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+                </VBox>
+                <!-- Instructions side -->
+                <VBox spacing="20" alignment="CENTER_LEFT" style="-fx-max-width:300;">
+                    <Label text="HOW TO PAY"
+                           style="-fx-text-fill:#7C3AED;-fx-font-family:monospace;-fx-font-size:13px;-fx-font-weight:bold;"/>
+                    <VBox spacing="12">
+                        <HBox spacing="12" alignment="CENTER_LEFT">
+                            <Label text="1" style="-fx-background-color:#7C3AED;-fx-text-fill:white;-fx-min-width:24;-fx-min-height:24;-fx-background-radius:12;-fx-alignment:center;-fx-font-family:monospace;-fx-font-weight:bold;"/>
+                            <Label text="Open PhonePe / GPay / Paytm" style="-fx-text-fill:#94a3b8;-fx-font-family:monospace;-fx-font-size:12px;"/>
+                        </HBox>
+                        <HBox spacing="12" alignment="CENTER_LEFT">
+                            <Label text="2" style="-fx-background-color:#7C3AED;-fx-text-fill:white;-fx-min-width:24;-fx-min-height:24;-fx-background-radius:12;-fx-alignment:center;-fx-font-family:monospace;-fx-font-weight:bold;"/>
+                            <Label text="Tap 'Scan QR Code'" style="-fx-text-fill:#94a3b8;-fx-font-family:monospace;-fx-font-size:12px;"/>
+                        </HBox>
+                        <HBox spacing="12" alignment="CENTER_LEFT">
+                            <Label text="3" style="-fx-background-color:#7C3AED;-fx-text-fill:white;-fx-min-width:24;-fx-min-height:24;-fx-background-radius:12;-fx-alignment:center;-fx-font-family:monospace;-fx-font-weight:bold;"/>
+                            <Label text="Scan the QR on the left" style="-fx-text-fill:#94a3b8;-fx-font-family:monospace;-fx-font-size:12px;"/>
+                        </HBox>
+                        <HBox spacing="12" alignment="CENTER_LEFT">
+                            <Label text="4" style="-fx-background-color:#7C3AED;-fx-text-fill:white;-fx-min-width:24;-fx-min-height:24;-fx-background-radius:12;-fx-alignment:center;-fx-font-family:monospace;-fx-font-weight:bold;"/>
+                            <Label text="Pay &amp; tap CONFIRM below" style="-fx-text-fill:#94a3b8;-fx-font-family:monospace;-fx-font-size:12px;"/>
+                        </HBox>
+                    </VBox>
+                    <Button text="PAYMENT DONE - CONFIRM" onAction="#handleUPIConfirm" maxWidth="Infinity"
+                            style="-fx-background-color:#1A0A33;-fx-text-fill:#7C3AED;-fx-font-size:16px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-radius:12;-fx-border-color:#7C3AED;-fx-border-radius:12;-fx-border-width:2;-fx-cursor:hand;-fx-min-height:56;-fx-effect:dropshadow(gaussian,#7C3AED,14,0.5,0,0);"/>
+                </VBox>
+            </HBox>
+        </StackPane>
+    </VBox>
+
+
+    <!-- STEP 3D: Enter PIN -->
+    <VBox fx:id="step3pin" visible="false" managed="false" spacing="0">
+        <HBox style="-fx-background-color:#0A0F1A;-fx-border-color:#7C3AED;-fx-border-width:0 0 1 0;-fx-padding:10 20 10 20;"
+              alignment="CENTER_LEFT" spacing="14">
+            <Label text="VERIFY PAYMENT PIN"
+                   style="-fx-text-fill:#7C3AED;-fx-font-size:16px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-effect:dropshadow(gaussian,#7C3AED,6,0.4,0,0);"/>
+        </HBox>
+        <StackPane VBox.vgrow="ALWAYS" alignment="CENTER" style="-fx-background-color:#05080F;">
+            <VBox spacing="20" alignment="CENTER" style="-fx-max-width:440;">
+
+                <!-- SMS sent info -->
+                <VBox alignment="CENTER" spacing="6"
+                      style="-fx-background-color:#0D1525;-fx-background-radius:12;-fx-border-color:#7C3AED;-fx-border-radius:12;-fx-border-width:1;-fx-padding:20 28 20 28;">
+                    <Label text="PIN SENT VIA SMS" style="-fx-text-fill:#7C3AED;-fx-font-family:monospace;-fx-font-size:11px;-fx-font-weight:bold;"/>
+                    <Label fx:id="pinSentLabel" text=""
+                           style="-fx-text-fill:#94a3b8;-fx-font-family:monospace;-fx-font-size:13px;"/>
+                    <!-- PIN display boxes -->
+                    <HBox spacing="14" alignment="CENTER" style="-fx-padding:10 0 0 0;">
+                        <Label fx:id="pinBox1" text="_"
+                               style="-fx-text-fill:#7C3AED;-fx-font-size:36px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#111828;-fx-background-radius:8;-fx-min-width:60;-fx-min-height:60;-fx-alignment:center;-fx-border-color:#7C3AED;-fx-border-width:1;-fx-border-radius:8;"/>
+                        <Label fx:id="pinBox2" text="_"
+                               style="-fx-text-fill:#7C3AED;-fx-font-size:36px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#111828;-fx-background-radius:8;-fx-min-width:60;-fx-min-height:60;-fx-alignment:center;-fx-border-color:#7C3AED;-fx-border-width:1;-fx-border-radius:8;"/>
+                        <Label fx:id="pinBox3" text="_"
+                               style="-fx-text-fill:#7C3AED;-fx-font-size:36px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#111828;-fx-background-radius:8;-fx-min-width:60;-fx-min-height:60;-fx-alignment:center;-fx-border-color:#7C3AED;-fx-border-width:1;-fx-border-radius:8;"/>
+                        <Label fx:id="pinBox4" text="_"
+                               style="-fx-text-fill:#7C3AED;-fx-font-size:36px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#111828;-fx-background-radius:8;-fx-min-width:60;-fx-min-height:60;-fx-alignment:center;-fx-border-color:#7C3AED;-fx-border-width:1;-fx-border-radius:8;"/>
+                    </HBox>
+                </VBox>
+
+                <!-- Demo PIN hint -->
+                <Label fx:id="demoPinLabel" text=""
+                       style="-fx-text-fill:#334155;-fx-font-family:monospace;-fx-font-size:11px;"/>
+
+                <!-- Mini numpad -->
+                <VBox spacing="8">
+                    <HBox spacing="10" alignment="CENTER">
+                        <Button text="1" onAction="#pinNum1" style="-fx-min-width:90;-fx-min-height:60;-fx-font-size:22px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#7C3AED;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="2" onAction="#pinNum2" style="-fx-min-width:90;-fx-min-height:60;-fx-font-size:22px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#7C3AED;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="3" onAction="#pinNum3" style="-fx-min-width:90;-fx-min-height:60;-fx-font-size:22px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#7C3AED;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                    </HBox>
+                    <HBox spacing="10" alignment="CENTER">
+                        <Button text="4" onAction="#pinNum4" style="-fx-min-width:90;-fx-min-height:60;-fx-font-size:22px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#7C3AED;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="5" onAction="#pinNum5" style="-fx-min-width:90;-fx-min-height:60;-fx-font-size:22px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#7C3AED;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="6" onAction="#pinNum6" style="-fx-min-width:90;-fx-min-height:60;-fx-font-size:22px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#7C3AED;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                    </HBox>
+                    <HBox spacing="10" alignment="CENTER">
+                        <Button text="7" onAction="#pinNum7" style="-fx-min-width:90;-fx-min-height:60;-fx-font-size:22px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#7C3AED;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="8" onAction="#pinNum8" style="-fx-min-width:90;-fx-min-height:60;-fx-font-size:22px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#7C3AED;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="9" onAction="#pinNum9" style="-fx-min-width:90;-fx-min-height:60;-fx-font-size:22px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#7C3AED;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                    </HBox>
+                    <HBox spacing="10" alignment="CENTER">
+                        <Button text="CLR" onAction="#pinClear" style="-fx-min-width:90;-fx-min-height:60;-fx-font-size:16px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#1A0A2A;-fx-text-fill:#7C3AED;-fx-border-color:#7C3AED;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="0"   onAction="#pinNum0" style="-fx-min-width:90;-fx-min-height:60;-fx-font-size:22px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#7C3AED;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="DEL" onAction="#pinDel"   style="-fx-min-width:90;-fx-min-height:60;-fx-font-size:16px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#1A0A2A;-fx-text-fill:#7C3AED;-fx-border-color:#7C3AED;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                    </HBox>
+                </VBox>
+
+                <Label fx:id="pinError" text=""
+                       style="-fx-text-fill:#FF2244;-fx-font-family:monospace;-fx-font-size:12px;"/>
+
+                <Button text="VERIFY PIN" onAction="#handleVerifyPin" maxWidth="Infinity"
+                        style="-fx-background-color:#7C3AED;-fx-text-fill:white;-fx-font-size:18px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-radius:12;-fx-border-radius:12;-fx-cursor:hand;-fx-min-height:58;"/>
+            </VBox>
+        </StackPane>
+    </VBox>
+    <!-- STEP 3C: Payment Success Animation -->
+    <VBox fx:id="step3success" visible="false" managed="false" spacing="0">
+        <StackPane VBox.vgrow="ALWAYS" alignment="CENTER" style="-fx-background-color:#05080F;">
+            <VBox spacing="24" alignment="CENTER">
+                <Canvas fx:id="checkCanvas" width="200" height="200"/>
+                <Label fx:id="successTitle" text="PAYMENT CONFIRMED!"
+                       style="-fx-text-fill:white;-fx-font-size:28px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#00FF88;-fx-background-radius:8;-fx-padding:8 20 8 20;-fx-opacity:0;"/>
+                <Label fx:id="successSub" text=""
+                       style="-fx-text-fill:#94a3b8;-fx-font-family:monospace;-fx-font-size:13px;-fx-opacity:0;"/>
+            </VBox>
+        </StackPane>
+    </VBox>
+
+    <!-- STEP 4: Receipt -->
+    <VBox fx:id="step4" visible="false" managed="false" spacing="0">
+        <HBox style="-fx-background-color:#0A0F1A;-fx-border-color:#00FF88;-fx-border-width:0 0 1 0;-fx-padding:10 20 10 20;"
+              alignment="CENTER_LEFT" spacing="14">
+            <Label text="PAYMENT COMPLETE - THANK YOU!"
+                   style="-fx-text-fill:#00FF88;-fx-font-size:16px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-effect:dropshadow(gaussian,#00FF88,8,0.5,0,0);"/>
+            <HBox HBox.hgrow="ALWAYS"/>
+            <Label fx:id="cdLabel" text=""
+                   style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-font-size:12px;"/>
+        </HBox>
+        <StackPane VBox.vgrow="ALWAYS" alignment="CENTER" style="-fx-background-color:#05080F;">
+            <HBox spacing="40" alignment="CENTER" style="-fx-padding:30;">
+                <VBox alignment="CENTER" spacing="14"
+                      style="-fx-background-color:#0D1525;-fx-background-radius:18;-fx-border-color:#00FF88;-fx-border-radius:18;-fx-border-width:1;-fx-padding:28;-fx-effect:dropshadow(gaussian,#00FF88,16,0.4,0,0);">
+                    <Label text="RECEIPT QR"
+                           style="-fx-text-fill:#00FF88;-fx-font-family:monospace;-fx-font-size:13px;-fx-font-weight:bold;"/>
+                    <ImageView fx:id="receiptQR" fitWidth="200" fitHeight="200" preserveRatio="true"/>
+                    <Label text="Scan for digital receipt"
+                           style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-font-size:11px;"/>
+                </VBox>
+                <VBox spacing="10"
+                      style="-fx-background-color:#0D1525;-fx-background-radius:18;-fx-border-color:#1E3A5F;-fx-border-radius:18;-fx-border-width:1;-fx-padding:28;-fx-min-width:340;">
+                    <TextArea fx:id="receiptArea" editable="false" prefHeight="280"
+                              style="-fx-background-color:#080C14;-fx-control-inner-background:#080C14;-fx-text-fill:#00FF88;-fx-font-family:monospace;-fx-font-size:12px;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;"/>
+                    <Button text="DONE - GO HOME" onAction="#handleDone" maxWidth="Infinity"
+                            style="-fx-background-color:#003320;-fx-text-fill:#00FF88;-fx-font-size:16px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-radius:10;-fx-border-color:#00FF88;-fx-border-radius:10;-fx-border-width:2;-fx-cursor:hand;-fx-min-height:52;-fx-effect:dropshadow(gaussian,#00FF88,12,0.4,0,0);"/>
+                </VBox>
+            </HBox>
+        </StackPane>
+    </VBox>
+
+</StackPane>

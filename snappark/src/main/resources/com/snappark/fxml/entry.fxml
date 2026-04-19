@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.snappark.controller.VehicleEntryController"
+      spacing="0" styleClass="root-pane">
+
+    <HBox style="-fx-padding:16 24 14 24;-fx-background-color:#0A0F1A;-fx-border-color:#00C2FF;-fx-border-width:0 0 1 0;" alignment="CENTER_LEFT">
+        <Label text="[ VEHICLE ENTRY ]" style="-fx-text-fill:#00C2FF;-fx-font-size:17px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+    </HBox>
+
+    <HBox spacing="16" style="-fx-padding:16 20 20 20;" VBox.vgrow="ALWAYS">
+        <VBox spacing="12"
+              style="-fx-background-color:#0D1525;-fx-background-radius:12;-fx-border-color:#1E3A5F;-fx-border-radius:12;-fx-border-width:1;-fx-padding:20;"
+              prefWidth="380" maxWidth="420">
+            <Label text="New Vehicle Entry" style="-fx-text-fill:white;-fx-font-size:15px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+            <Label text="License Plate" styleClass="field-label"/>
+            <TextField fx:id="licensePlateField" promptText="e.g. MH12AB1234" styleClass="input-field"/>
+            <Label text="Owner Name" styleClass="field-label"/>
+            <TextField fx:id="ownerNameField" promptText="Enter owner name" styleClass="input-field"/>
+            <Label text="Vehicle Type" styleClass="field-label"/>
+            <ComboBox fx:id="vehicleTypeBox" maxWidth="Infinity" styleClass="input-field"/>
+            <Label text="Select Slot" styleClass="field-label"/>
+            <ComboBox fx:id="slotBox" maxWidth="Infinity" styleClass="input-field"/>
+            <Label fx:id="entryErrorLabel" text="" style="-fx-text-fill:#f43f5e;-fx-font-size:12px;-fx-font-family:monospace;"/>
+            <Button text="CONFIRM ENTRY" styleClass="touch-btn-green" maxWidth="Infinity" onAction="#handleEntry"
+                    style="-fx-min-height:52;-fx-font-size:16px;"/>
+        </VBox>
+
+        <VBox spacing="10" VBox.vgrow="ALWAYS" HBox.hgrow="ALWAYS">
+            <Label text="Recent Entries" style="-fx-text-fill:white;-fx-font-size:15px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+            <TableView fx:id="entriesTable" VBox.vgrow="ALWAYS"
+                       style="-fx-background-color:#0D1525;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:10;">
+                <columns>
+                    <TableColumn fx:id="colPlate" text="Plate"    prefWidth="130"/>
+                    <TableColumn fx:id="colOwner" text="Owner"    prefWidth="120"/>
+                    <TableColumn fx:id="colSlot"  text="Slot"     prefWidth="70"/>
+                    <TableColumn fx:id="colType"  text="Type"     prefWidth="70"/>
+                    <TableColumn fx:id="colTime"  text="Entry Time" prefWidth="150"/>
+                </columns>
+            </TableView>
+        </VBox>
+    </HBox>
+</VBox>

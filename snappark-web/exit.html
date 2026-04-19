@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SnapPark — Check Out</title>
+    <meta name="description" content="SnapPark smart parking checkout. View your bill, pay via UPI or cash, and get your exit PIN.">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app-container">
+
+    <!-- Header -->
+    <header class="app-header">
+        <div class="logo">🅿️ SnapPark</div>
+        <div class="subtitle">Check Out</div>
+    </header>
+
+    <!-- Error alert area -->
+    <div id="alertArea"></div>
+
+    <!-- ═════════ SECTION A: Lookup ═════════ -->
+    <div id="lookupSection">
+        <div class="card" style="animation-delay:0.1s">
+            <div class="card-title"><span class="icon">🔍</span> Find Your Session</div>
+            <div class="form-group">
+                <label class="form-label">Vehicle Number</label>
+                <input type="text" class="form-input mono" id="exitPlateInput" placeholder="MH12AB1234"
+                       maxlength="12" autocapitalize="characters">
+            </div>
+            <div style="text-align:center;color:var(--text-muted);font-size:0.75rem;padding:8px 0">— OR —</div>
+            <div class="form-group">
+                <label class="form-label">Session PIN (4-digit)</label>
+                <input type="text" class="form-input mono" id="exitPinInput" placeholder="4729"
+                       maxlength="4" inputmode="numeric" style="text-align:center;letter-spacing:8px">
+            </div>
+            <button class="btn btn-primary" id="btnLookup">🔎 Find My Session</button>
+        </div>
+    </div>
+
+    <!-- ═════════ SECTION B: Bill ═════════ -->
+    <div id="billSection" class="hidden">
+        <div class="card">
+            <div class="bill-section">
+                <div class="bill-header">
+                    <div class="bill-icon">📋</div>
+                    <div class="bill-title">PARKING BILL</div>
+                </div>
+
+                <!-- Vehicle Info -->
+                <div style="margin-bottom:16px">
+                    <div class="bill-row">
+                        <span class="bill-label">Vehicle</span>
+                        <span class="bill-value" id="billPlate">—</span>
+                    </div>
+                    <div class="bill-row" id="billStateRow">
+                        <span class="bill-label">Registered</span>
+                        <span class="bill-value" id="billState">—</span>
+                    </div>
+                    <div class="bill-row">
+                        <span class="bill-label">Type</span>
+                        <span class="bill-value" id="billType">—</span>
+                    </div>
+                </div>
+
+                <!-- Time Info -->
+                <div style="margin-bottom:16px">
+                    <div class="bill-row">
+                        <span class="bill-label">Slot</span>
+                        <span class="bill-value" id="billSlot">—</span>
+                    </div>
+                    <div class="bill-row">
+                        <span class="bill-label">Entry</span>
+                        <span class="bill-value" id="billEntry">—</span>
+                    </div>
+                    <div class="bill-row">
+                        <span class="bill-label">Now</span>
+                        <span class="bill-value" id="billExit">—</span>
+                    </div>
+                    <div class="bill-row">
+                        <span class="bill-label">Duration</span>
+                        <span class="bill-value" id="billDuration">—</span>
+                    </div>
+                </div>
+
+                <!-- Pricing Breakdown -->
+                <div style="margin-bottom:16px">
+                    <div class="bill-row">
+                        <span class="bill-label">Base Rate</span>
+                        <span class="bill-value" id="billBaseRate">—</span>
+                    </div>
+                    <div class="bill-row surge" id="billSurgeRow" style="display:none">
+                        <span class="bill-label" id="billSurgeLabel">Surge</span>
+                        <span class="bill-value" id="billSurgeVal">—</span>
+                    </div>
+                    <div class="bill-row">
+                        <span class="bill-label">Effective Rate</span>
+                        <span class="bill-value" id="billEffRate">—</span>
+                    </div>
+                    <div class="bill-row">
+                        <span class="bill-label">Parking Fee</span>
+                        <span class="bill-value" id="billParkFee">—</span>
+                    </div>
+                </div>
+
+                <!-- Fines -->
+                <div id="finesSection" class="hidden" style="margin-bottom:16px">
+                    <div style="font-size:0.75rem;font-weight:700;color:var(--accent-red);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px">⚠ Fines</div>
+                    <div id="finesList"></div>
+                </div>
+
+                <!-- Grace -->
+                <div id="graceNote" class="hidden">
+                    <div class="alert alert-success" style="margin:0">
+                        <span>🎉</span> Within 15-min grace period — Parking is FREE!
+                    </div>
+                </div>
+
+                <!-- Total -->
+                <div class="bill-row total">
+                    <span class="bill-label">TOTAL</span>
+                    <span class="bill-value" id="billTotal">₹0.00</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Payment -->
+        <div class="card" id="paymentCard">
+            <div class="card-title"><span class="icon">💳</span> Payment Method</div>
+            <div class="pay-options">
+                <button class="pay-btn selected" data-method="UPI" id="payUpi">
+                    <span class="pay-icon">📱</span>
+                    <span>UPI</span>
+                </button>
+                <button class="pay-btn" data-method="CASH" id="payCash">
+                    <span class="pay-icon">💵</span>
+                    <span>Cash</span>
+                </button>
+            </div>
+
+            <!-- UPI simulation -->
+            <div id="upiDetail">
+                <div class="upi-section">
+                    <div style="font-size:0.85rem;color:var(--text-secondary)">Scan with any UPI app</div>
+                    <div class="upi-qr-frame">
+                        <div style="width:160px;height:160px;background:var(--bg-primary);display:flex;align-items:center;justify-content:center;border-radius:8px">
+                            <div style="font-size:0.7rem;color:var(--text-muted);text-align:center;padding:8px">UPI QR<br>(Simulated)</div>
+                        </div>
+                    </div>
+                    <div style="font-size:0.75rem;color:var(--text-muted)">upi://pay?pa=snappark@sim</div>
+                    <div class="upi-timer" id="upiTimer">5:00</div>
+                </div>
+            </div>
+
+            <!-- Cash display -->
+            <div id="cashDetail" class="hidden">
+                <div style="text-align:center;padding:20px 0">
+                    <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px">Show this amount to the attendant</div>
+                    <div style="font-size:2.5rem;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--accent-amber)" id="cashAmount">₹0</div>
+                </div>
+            </div>
+
+            <button class="btn btn-success" id="btnPay">✅ I Have Paid — Get Exit PIN</button>
+        </div>
+    </div>
+
+    <!-- ═════════ SECTION C: Exit PIN ═════════ -->
+    <div id="exitPinSection" class="hidden">
+        <div class="confirm-screen">
+            <div class="confirm-icon">🏁</div>
+            <div class="confirm-title">PAYMENT CONFIRMED</div>
+            <div class="confirm-subtitle">Show this PIN to the exit agent</div>
+
+            <div class="pin-label">YOUR EXIT PIN</div>
+            <div class="pin-display" id="exitPinDisplay">
+                <!-- Filled by JS -->
+            </div>
+            <div style="font-size:0.8rem;color:var(--text-secondary);margin-top:8px">PIN expires in 15 minutes</div>
+
+            <div class="info-grid" id="exitInfoGrid">
+                <!-- Filled by JS -->
+            </div>
+
+            <div class="card" style="margin-top:16px;text-align:left">
+                <div class="card-title"><span class="icon">🧾</span> Receipt</div>
+                <pre style="font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:var(--text-secondary);white-space:pre-wrap;line-height:1.5;overflow-x:auto" id="receiptPre"></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading overlay -->
+    <div id="loadingOverlay" class="hidden" style="position:fixed;inset:0;background:rgba(5,8,15,0.85);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center">
+        <div class="spinner"></div>
+        <div class="loading-text" id="loadingMsg">Processing...</div>
+    </div>
+
+</div>
+<script src="app.js"></script>
+<script>
+    initExitPage();
+</script>
+</body>
+</html>

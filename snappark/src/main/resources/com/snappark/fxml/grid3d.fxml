@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.snappark.controller.ParkingGrid3DController"
+      spacing="0" styleClass="root-pane">
+
+    <HBox alignment="CENTER_LEFT" spacing="12"
+          style="-fx-background-color:#0A0F1A;-fx-border-color:#00C2FF;-fx-border-width:0 0 1 0;-fx-padding:9 16 9 16;">
+        <Label text="[ PARKING GRID 3D ]"
+               style="-fx-text-fill:#00C2FF;-fx-font-size:16px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+        <HBox HBox.hgrow="ALWAYS"/>
+
+        <Label text="SHOW:" style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-font-size:11px;"/>
+        <Button fx:id="btnAll"  text="ALL"       onAction="#filterAll"
+                style="-fx-background-color:#00C2FF;-fx-text-fill:#0A0F1A;-fx-font-family:monospace;-fx-font-size:11px;-fx-font-weight:bold;-fx-cursor:hand;-fx-background-radius:4;-fx-padding:5 10 5 10;"/>
+        <Button fx:id="btnTwo"  text="2-WHEELER" onAction="#filterTwoWheeler"
+                style="-fx-background-color:#0D1525;-fx-text-fill:#00FF88;-fx-border-color:#00FF88;-fx-border-width:1;-fx-font-family:monospace;-fx-font-size:11px;-fx-cursor:hand;-fx-background-radius:4;-fx-border-radius:4;-fx-padding:5 10 5 10;"/>
+        <Button fx:id="btnFour" text="4-WHEELER" onAction="#filterFourWheeler"
+                style="-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#00C2FF;-fx-border-width:1;-fx-font-family:monospace;-fx-font-size:11px;-fx-cursor:hand;-fx-background-radius:4;-fx-border-radius:4;-fx-padding:5 10 5 10;"/>
+
+        <Label text="|" style="-fx-text-fill:#1e2d47;"/>
+
+        <!-- HEATMAP BUTTON -->
+        <Button fx:id="btnHeatmap" text="HEATMAP" onAction="#toggleHeatmap"
+                style="-fx-background-color:#0D1525;-fx-text-fill:#FF6600;-fx-border-color:#FF6600;-fx-border-width:1;-fx-font-family:monospace;-fx-font-size:11px;-fx-font-weight:bold;-fx-cursor:hand;-fx-background-radius:4;-fx-border-radius:4;-fx-padding:5 12 5 12;"/>
+
+        <Label text="|" style="-fx-text-fill:#1e2d47;"/>
+
+        <ComboBox fx:id="floorSelector"
+                  style="-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#00C2FF;-fx-border-width:1;-fx-font-family:monospace;-fx-min-width:96px;"/>
+        <Button text="RESET"   onAction="#resetCamera"
+                style="-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#00C2FF;-fx-border-width:1;-fx-font-family:monospace;-fx-font-size:11px;-fx-cursor:hand;-fx-background-radius:4;-fx-border-radius:4;-fx-padding:5 10 5 10;"/>
+        <Button text="REFRESH" onAction="#handleRefresh"
+                style="-fx-background-color:#0D1525;-fx-text-fill:#00FF88;-fx-border-color:#00FF88;-fx-border-width:1;-fx-font-family:monospace;-fx-font-size:11px;-fx-cursor:hand;-fx-background-radius:4;-fx-border-radius:4;-fx-padding:5 10 5 10;"/>
+    </HBox>
+
+    <!-- STATUS / HEATMAP MODE BAR -->
+    <HBox spacing="16"
+          style="-fx-background-color:#080C14;-fx-border-color:#FF6600;-fx-border-width:0 0 0 0;-fx-min-height:24px;-fx-padding:4 16 4 16;" alignment="CENTER_LEFT">
+        <Label fx:id="statusLabel" text=""
+               style="-fx-text-fill:#FFB800;-fx-font-size:11px;-fx-font-family:monospace;"/>
+        <HBox HBox.hgrow="ALWAYS"/>
+        <Label fx:id="heatmapModeLabel" text=""
+               style="-fx-text-fill:#FF6600;-fx-font-size:11px;-fx-font-family:monospace;-fx-font-weight:bold;"/>
+    </HBox>
+
+    <StackPane fx:id="container" VBox.vgrow="ALWAYS" style="-fx-background-color:#05080F;"/>
+
+    <HBox alignment="CENTER" spacing="32"
+          style="-fx-background-color:#0A0F1A;-fx-border-color:#00C2FF;-fx-border-width:1 0 0 0;-fx-padding:8 16 8 16;">
+        <HBox spacing="7" alignment="CENTER_LEFT">
+            <Label style="-fx-background-color:#00FF88;-fx-min-width:10;-fx-min-height:10;-fx-background-radius:2;"/>
+            <Label text="AVAILABLE" style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-font-size:11px;"/>
+            <Label fx:id="availableLabel" text="0"
+                   style="-fx-text-fill:#00FF88;-fx-font-weight:bold;-fx-font-family:monospace;-fx-font-size:14px;"/>
+        </HBox>
+        <HBox spacing="7" alignment="CENTER_LEFT">
+            <Label style="-fx-background-color:#FF2244;-fx-min-width:10;-fx-min-height:10;-fx-background-radius:2;"/>
+            <Label text="OCCUPIED" style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-font-size:11px;"/>
+            <Label fx:id="occupiedLabel" text="0"
+                   style="-fx-text-fill:#FF2244;-fx-font-weight:bold;-fx-font-family:monospace;-fx-font-size:14px;"/>
+        </HBox>
+        <HBox spacing="7" alignment="CENTER_LEFT">
+            <Label style="-fx-background-color:#FFB800;-fx-min-width:10;-fx-min-height:10;-fx-background-radius:2;"/>
+            <Label text="LOCKING" style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-font-size:11px;"/>
+            <Label fx:id="lockingLabel" text="0"
+                   style="-fx-text-fill:#FFB800;-fx-font-weight:bold;-fx-font-family:monospace;-fx-font-size:14px;"/>
+        </HBox>
+        <HBox HBox.hgrow="ALWAYS"/>
+        <Label fx:id="filterLabel" text="SHOWING: ALL SLOTS"
+               style="-fx-text-fill:#00C2FF;-fx-font-family:monospace;-fx-font-size:11px;"/>
+    </HBox>
+</VBox>

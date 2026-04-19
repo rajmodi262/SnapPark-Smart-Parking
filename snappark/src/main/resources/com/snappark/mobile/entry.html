@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SnapPark — Smart Entry</title>
+    <meta name="description" content="SnapPark smart parking check-in. Select a slot, confirm your vehicle, and get your session PIN.">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app-container">
+
+    <!-- Header -->
+    <header class="app-header">
+        <div class="logo">🅿️ SnapPark</div>
+        <div class="subtitle">Smart Entry</div>
+    </header>
+
+    <!-- Live Stats -->
+    <div class="stats-bar" id="statsBar">
+        <div class="stat-item"><span class="stat-dot green"></span> <span id="availCount">—</span> Available</div>
+        <div class="stat-item"><span class="stat-dot red"></span> <span id="occCount">—</span> Occupied</div>
+        <div class="stat-item"><span class="stat-dot blue"></span> <span id="occPct">—</span>% Full</div>
+    </div>
+
+    <!-- Step Indicator -->
+    <div class="step-indicator" id="stepIndicator">
+        <div class="step-item">
+            <div class="step-dot active" id="dot1">1</div>
+        </div>
+        <div class="step-line" id="line1"></div>
+        <div class="step-item">
+            <div class="step-dot" id="dot2">2</div>
+        </div>
+        <div class="step-line" id="line2"></div>
+        <div class="step-item">
+            <div class="step-dot" id="dot3">3</div>
+        </div>
+    </div>
+
+    <!-- Error alert area -->
+    <div id="alertArea"></div>
+
+    <!-- ═════════ STEP 1: Vehicle Details ═════════ -->
+    <div class="step-screen active" id="step1">
+        <div class="card" style="animation-delay:0.1s">
+            <div class="card-title"><span class="icon">📱</span> Your Details</div>
+            <div class="form-group">
+                <label class="form-label">Phone Number</label>
+                <input type="tel" class="form-input" id="phoneInput" placeholder="+91 98765 43210"
+                       maxlength="15" autocomplete="tel" inputmode="numeric">
+            </div>
+        </div>
+
+        <div class="card" style="animation-delay:0.2s">
+            <div class="card-title"><span class="icon">🚗</span> Vehicle Details</div>
+            <div class="form-group">
+                <label class="form-label">Vehicle Number</label>
+                <input type="text" class="form-input mono" id="plateInput" placeholder="MH12AB1234"
+                       maxlength="12" autocomplete="off" autocapitalize="characters">
+                <div id="plateBadge"></div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Vehicle Type</label>
+                <div class="type-selector" id="typeSelector">
+                    <button class="type-btn" data-type="BIKE" id="typeBike">
+                        <span class="type-icon">🏍️</span>
+                        <span>BIKE</span>
+                        <span class="type-price" id="priceBike">₹20/hr</span>
+                    </button>
+                    <button class="type-btn selected" data-type="CAR" id="typeCar">
+                        <span class="type-icon">🚗</span>
+                        <span>CAR</span>
+                        <span class="type-price" id="priceCar">₹50/hr</span>
+                    </button>
+                    <button class="type-btn" data-type="SUV" id="typeSuv">
+                        <span class="type-icon">🚙</span>
+                        <span>SUV</span>
+                        <span class="type-price" id="priceSuv">₹80/hr</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rate Preview -->
+        <div class="rate-preview" id="ratePreview" style="animation-delay:0.3s">
+            <div class="rate-row">
+                <span>Your Rate</span>
+                <span class="rate-value" id="rateValue">₹50/hr</span>
+            </div>
+            <div class="rate-row" id="surgeRow" style="display:none">
+                <span id="surgeLabel">⚡ Surge Active</span>
+                <span class="surge-badge" id="surgeBadge">+20%</span>
+            </div>
+            <div class="rate-row" id="discountRow" style="display:none">
+                <span id="discountLabel">🌙 Night Discount</span>
+                <span class="discount-badge" id="discountBadge">-10%</span>
+            </div>
+            <div class="rate-row" style="border:none;padding-top:6px">
+                <span style="color:var(--text-muted);font-size:0.75rem">First 15 minutes FREE</span>
+            </div>
+        </div>
+
+        <div style="height:16px"></div>
+        <button class="btn btn-primary" id="btnNext1">Next — Select Slot →</button>
+    </div>
+
+    <!-- ═════════ STEP 2: Slot Selection ═════════ -->
+    <div class="step-screen" id="step2">
+        <div class="card">
+            <div class="card-title"><span class="icon">🗺️</span> Select Your Slot</div>
+            <div id="slotGrid">
+                <div class="spinner"></div>
+                <div class="loading-text">Loading slot map...</div>
+            </div>
+        </div>
+
+        <!-- AI Recommendations -->
+        <div class="card" id="recCard" style="display:none">
+            <div class="card-title"><span class="icon">⭐</span> AI Recommended</div>
+            <div id="recList"></div>
+        </div>
+
+        <div style="height:16px"></div>
+        <div class="btn-row">
+            <button class="btn btn-secondary btn-half" id="btnBack2">← Back</button>
+            <button class="btn btn-primary btn-half" id="btnNext2" disabled>Confirm Slot →</button>
+        </div>
+    </div>
+
+    <!-- ═════════ STEP 3: Confirmation ═════════ -->
+    <div class="step-screen" id="step3">
+        <!-- Loading state -->
+        <div id="confirmLoading">
+            <div style="padding:60px 0;text-align:center">
+                <div class="spinner"></div>
+                <div class="loading-text">Securing your spot...</div>
+            </div>
+        </div>
+
+        <!-- Success state -->
+        <div id="confirmSuccess" class="hidden">
+            <div class="confirm-screen">
+                <div class="confirm-icon">✅</div>
+                <div class="confirm-title">YOU'RE PARKED!</div>
+                <div class="confirm-subtitle">Your slot has been reserved</div>
+
+                <div class="pin-label">YOUR SESSION PIN</div>
+                <div class="pin-display" id="pinDisplay">
+                    <!-- Filled by JS -->
+                </div>
+                <div style="font-size:0.8rem;color:var(--text-secondary);margin-top:8px">Save this! You'll need it at exit.</div>
+
+                <div class="info-grid" id="confirmGrid">
+                    <!-- Filled by JS -->
+                </div>
+
+                <div class="warning-box" id="fineWarning">
+                    <span>⚠️</span>
+                    <span id="fineWarningText">Park at your assigned slot ONLY. Wrong slot = ₹200 fine</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>

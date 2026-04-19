@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SnapPark — Ticket History</title>
+    <meta name="description" content="View your parking ticket history by phone number.">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app-container">
+
+    <!-- Header -->
+    <header class="app-header">
+        <div class="logo">🅿️ SnapPark</div>
+        <div class="subtitle">Ticket History</div>
+    </header>
+
+    <!-- Error alert area -->
+    <div id="alertArea"></div>
+
+    <!-- Search Section -->
+    <div id="searchSection">
+        <div class="card" style="animation-delay:0.1s">
+            <div class="card-title"><span class="icon">📱</span> Find Your Tickets</div>
+            <div class="form-group">
+                <label class="form-label">Phone Number</label>
+                <input type="tel" class="form-input" id="historyPhone" placeholder="+91 98765 43210"
+                       maxlength="15" inputmode="numeric">
+            </div>
+            <button class="btn btn-primary" id="btnSearch" onclick="searchHistory()">🔍 View History</button>
+        </div>
+    </div>
+
+    <!-- Results Section -->
+    <div id="resultsSection" class="hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <div style="font-size:0.85rem;color:var(--text-secondary)">
+                <span id="resultCount">0</span> tickets found
+            </div>
+            <button class="btn btn-ghost" onclick="backToSearch()" style="width:auto;padding:8px 16px;font-size:0.8rem">← New Search</button>
+        </div>
+        <div id="ticketList"></div>
+    </div>
+
+</div>
+
+<script>
+const API = window.location.origin;
+
+document.getElementById('historyPhone').addEventListener('keyup', function(e) {
+    if (e.key === 'Enter') searchHistory();
+});
+
+async function searchHistory() {
+    const phone = document.getElementById('historyPhone').value.replace(/[^0-9]/g, '');
+    if (phone.length < 10) {
+        showAlert('Enter a valid 10-digit phone number', 'error');
+        return;
+    }
+
+    try {
+        const res = await fetch(API + '/api/history?phone=' + encodeURIComponent(phone));
+        const data = await res.json();
+
+        if (data.error) {
+            showAlert(data.error, 'error');
+            return;
+        }
+
+        renderHistory(data);
+    } catch (e) {
+        showAlert('Network error. Try again.', 'error');
+    }
+}
+
+function renderHistory(tickets) {
+    document.getElementById('searchSection').classList.add('hidden');
+    document.getElementById('resultsSection').classList.remove('hidden');
+    document.getElementById('resultCount').textContent = tickets.length;
+
+    if (tickets.length === 0) {
+        document.getElementById('ticketList').innerHTML = `
+            <div class="card" style="text-align:center;padding:40px 20px">
+                <div style="font-size:3rem;margin-bottom:12px">🎫</div>
+                <div style="font-size:1rem;font-weight:700;color:var(--text-primary);margin-bottom:4px">No Tickets Found</div>
+                <div style="font-size:0.8rem;color:var(--text-secondary)">No parking sessions found for this phone number</div>
+            </div>`;
+        return;
+    }
+
+    document.getElementById('ticketList').innerHTML = tickets.map((t, i) => {
+        const isActive = t.active;
+        const durH = Math.floor(t.durationMin / 60);
+        const durM = t.durationMin % 60;
+
+        const statusColor = isActive ? 'var(--accent-green)' : 'var(--text-muted)';
+        const statusText = isActive ? '🟢 ACTIVE' : '✅ Completed';
+        const statusBg = isActive ? 'rgba(0,255,136,0.08)' : 'rgba(139,148,158,0.05)';
+        const borderColor = isActive ? 'rgba(0,255,136,0.2)' : 'var(--border)';
+
+        const typeIcon = t.vehicleType === 'BIKE' ? '🏍️' :
+                         t.vehicleType === 'SUV'  ? '🚙' : '🚗';
+
+        return `
+        <div class="card" style="animation-delay:${i * 0.05}s;border-color:${borderColor};background:${statusBg}">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                <div style="display:flex;align-items:center;gap:8px">
+                    <span style="font-size:1.5rem">${typeIcon}</span>
+                    <div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:0.95rem;letter-spacing:1px">${formatPlate(t.plate)}</div>
+                        <div style="font-size:0.7rem;color:var(--text-muted)">${t.vehicleType}</div>
+                    </div>
+                </div>
+                <div style="font-size:0.7rem;font-weight:700;color:${statusColor}">${statusText}</div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <div class="info-item" style="padding:10px">
+                    <div class="label">Slot</div>
+                    <div class="value" style="font-size:0.9rem">${t.slotNumber}</div>
+                </div>
+                <div class="info-item" style="padding:10px">
+                    <div class="label">Duration</div>
+                    <div class="value" style="font-size:0.9rem">${durH}h ${durM}m</div>
+                </div>
+                <div class="info-item" style="padding:10px">
+                    <div class="label">Entry</div>
+                    <div class="value" style="font-size:0.75rem">${formatTime(t.entryTime)}</div>
+                </div>
+                <div class="info-item" style="padding:10px">
+                    <div class="label">${isActive ? 'Status' : 'Exit'}</div>
+                    <div class="value" style="font-size:0.75rem">${isActive ? 'In Progress' : formatTime(t.exitTime)}</div>
+                </div>
+            </div>
+
+            ${t.paymentStatus === 'PAID' ? `
+            <div style="margin-top:8px;text-align:right">
+                <span style="font-size:0.7rem;font-weight:600;color:var(--accent-green);background:rgba(0,255,136,0.1);padding:3px 10px;border-radius:12px;border:1px solid rgba(0,255,136,0.2)">
+                    ✅ PAID
+                </span>
+            </div>` : isActive ? `
+            <div style="margin-top:8px;text-align:right">
+                <span style="font-size:0.7rem;font-weight:600;color:var(--accent-amber);background:rgba(255,184,0,0.1);padding:3px 10px;border-radius:12px;border:1px solid rgba(255,184,0,0.2)">
+                    ⏳ PENDING
+                </span>
+            </div>` : ''}
+        </div>`;
+    }).join('');
+}
+
+function backToSearch() {
+    document.getElementById('searchSection').classList.remove('hidden');
+    document.getElementById('resultsSection').classList.add('hidden');
+}
+
+function formatPlate(plate) {
+    if (!plate || plate.length < 6) return plate;
+    const m = plate.match(/^([A-Z]{2})(\d{1,2})([A-Z]{0,3})(\d{1,4})$/);
+    if (m) return m[1] + '-' + m[2] + '-' + m[3] + '-' + m[4];
+    return plate;
+}
+
+function formatTime(isoStr) {
+    if (!isoStr) return '—';
+    return isoStr.replace('T', ' ').substring(0, 16);
+}
+
+function showAlert(msg, type) {
+    const area = document.getElementById('alertArea');
+    const icon = type === 'error' ? '❌' : '✅';
+    area.innerHTML = '<div class="alert alert-' + type + '">' + icon + ' ' + msg + '</div>';
+    setTimeout(() => { area.innerHTML = ''; }, 5000);
+}
+</script>
+</body>
+</html>

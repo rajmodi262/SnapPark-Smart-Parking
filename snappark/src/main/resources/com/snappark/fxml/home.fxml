@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+
+<ScrollPane xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.snappark.controller.HomeController"
+      fitToWidth="true" style="-fx-background-color:#0a0d14;-fx-background:#0a0d14;">
+<VBox spacing="24" style="-fx-padding:32;-fx-background-color:#0a0d14;">
+
+    <Label fx:id="welcomeLabel" text="Welcome!"
+           style="-fx-text-fill:white;-fx-font-size:24px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+
+    <HBox spacing="14">
+        <VBox styleClass="stat-card-green" alignment="CENTER" spacing="6" HBox.hgrow="ALWAYS" prefHeight="120">
+            <Label fx:id="availableCount" text="0" styleClass="stat-num-green"/>
+            <Label text="AVAILABLE" style="-fx-text-fill:#00FF88;-fx-font-size:11px;-fx-font-family:monospace;"/>
+        </VBox>
+        <VBox styleClass="stat-card-red" alignment="CENTER" spacing="6" HBox.hgrow="ALWAYS" prefHeight="120">
+            <Label fx:id="occupiedCount" text="0" styleClass="stat-num-red"/>
+            <Label text="OCCUPIED" style="-fx-text-fill:#FF2244;-fx-font-size:11px;-fx-font-family:monospace;"/>
+        </VBox>
+        <VBox styleClass="stat-card-blue" alignment="CENTER" spacing="6" HBox.hgrow="ALWAYS" prefHeight="120">
+            <Label fx:id="totalCount" text="0" styleClass="stat-num-blue"/>
+            <Label text="TOTAL SLOTS" style="-fx-text-fill:#00C2FF;-fx-font-size:11px;-fx-font-family:monospace;"/>
+        </VBox>
+        <VBox styleClass="stat-card-purple" alignment="CENTER" spacing="6" HBox.hgrow="ALWAYS" prefHeight="120">
+            <Label fx:id="revenueCount" text="Rs.0" styleClass="stat-num-purple"/>
+            <Label text="TODAY REVENUE" style="-fx-text-fill:#A855F7;-fx-font-size:11px;-fx-font-family:monospace;"/>
+        </VBox>
+    </HBox>
+
+    <VBox styleClass="stat-card" spacing="14"
+          style="-fx-background-color:#0D1525;-fx-border-color:#1E3A5F;-fx-border-radius:12;-fx-background-radius:12;-fx-padding:22;">
+        <Label text="[ QUICK GUIDE ]" style="-fx-text-fill:#00C2FF;-fx-font-size:13px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+        <Label text="1.  Parking Grid  - View 3D slots, click green to lock" style="-fx-text-fill:#94a3b8;-fx-font-family:monospace;"/>
+        <Label text="2.  Vehicle Entry - Register vehicle and confirm booking" style="-fx-text-fill:#94a3b8;-fx-font-family:monospace;"/>
+        <Label text="3.  Vehicle Exit  - Select vehicle, view bill, generate receipt" style="-fx-text-fill:#94a3b8;-fx-font-family:monospace;"/>
+        <Label text="4.  Analytics     - Revenue charts and slot utilization" style="-fx-text-fill:#94a3b8;-fx-font-family:monospace;"/>
+    </VBox>
+</VBox>
+</ScrollPane>

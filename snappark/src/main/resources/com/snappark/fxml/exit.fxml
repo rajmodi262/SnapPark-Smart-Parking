@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.snappark.controller.VehicleExitController"
+      spacing="0" styleClass="root-pane">
+
+    <HBox style="-fx-padding: 18 24 14 24; -fx-background-color: #0A0F1A;
+                 -fx-border-color: #FF2244; -fx-border-width: 0 0 1 0;" alignment="CENTER_LEFT">
+        <Label text="[ VEHICLE EXIT ]"
+               style="-fx-text-fill: #FF2244; -fx-font-size: 18px; -fx-font-weight: bold; -fx-font-family: monospace;"/>
+    </HBox>
+
+    <HBox spacing="20" style="-fx-padding: 20 24 24 24;" VBox.vgrow="ALWAYS">
+
+        <!-- LEFT: Parked Vehicles -->
+        <VBox spacing="10" prefWidth="400">
+            <Label text="Currently Parked"
+                   style="-fx-text-fill: white; -fx-font-size: 15px; -fx-font-weight: bold; -fx-font-family: monospace;"/>
+            <Label text="Click a vehicle to generate bill"
+                   style="-fx-text-fill: #64748b; -fx-font-size: 11px; -fx-font-family: monospace;"/>
+            <TableView fx:id="parkedTable" VBox.vgrow="ALWAYS"
+                       style="-fx-background-color: #0D1525; -fx-border-color: #1E3A5F;
+                              -fx-border-width: 1; -fx-background-radius: 10;">
+                <columns>
+                    <TableColumn fx:id="colPlate"    text="Plate"    prefWidth="110"/>
+                    <TableColumn fx:id="colOwner"    text="Owner"    prefWidth="110"/>
+                    <TableColumn fx:id="colSlot"     text="Slot"     prefWidth="70"/>
+                    <TableColumn fx:id="colDuration" text="Duration" prefWidth="90"/>
+                </columns>
+            </TableView>
+        </VBox>
+
+        <!-- RIGHT: Bill + Receipt -->
+        <VBox spacing="14" HBox.hgrow="ALWAYS">
+
+            <VBox fx:id="billPane" spacing="10"
+                  style="-fx-background-color: #0D1525; -fx-background-radius: 12;
+                         -fx-border-color: #FF2244; -fx-border-radius: 12;
+                         -fx-border-width: 1; -fx-padding: 22;
+                         -fx-effect: dropshadow(gaussian,#FF2244,10,0.3,0,0);"
+                  visible="false" managed="false">
+                <Label text="[ BILLING DETAILS ]"
+                       style="-fx-text-fill: #FF2244; -fx-font-size: 13px; -fx-font-weight: bold; -fx-font-family: monospace;"/>
+
+                <HBox><Label text="Vehicle  : " style="-fx-text-fill: #64748b; -fx-min-width: 100; -fx-font-family: monospace;"/>
+                      <Label fx:id="billPlate"  style="-fx-text-fill: white; -fx-font-family: monospace;"/></HBox>
+                <HBox><Label text="Owner    : " style="-fx-text-fill: #64748b; -fx-min-width: 100; -fx-font-family: monospace;"/>
+                      <Label fx:id="billOwner"  style="-fx-text-fill: white; -fx-font-family: monospace;"/></HBox>
+                <HBox><Label text="Slot     : " style="-fx-text-fill: #64748b; -fx-min-width: 100; -fx-font-family: monospace;"/>
+                      <Label fx:id="billSlot"   style="-fx-text-fill: white; -fx-font-family: monospace;"/></HBox>
+                <HBox><Label text="Entry    : " style="-fx-text-fill: #64748b; -fx-min-width: 100; -fx-font-family: monospace;"/>
+                      <Label fx:id="billEntry"  style="-fx-text-fill: white; -fx-font-family: monospace;"/></HBox>
+                <HBox><Label text="Duration : " style="-fx-text-fill: #64748b; -fx-min-width: 100; -fx-font-family: monospace;"/>
+                      <Label fx:id="billDuration" style="-fx-text-fill: #FFB800; -fx-font-weight: bold; -fx-font-family: monospace;"/></HBox>
+                <HBox><Label text="Amount   : " style="-fx-text-fill: #64748b; -fx-min-width: 100; -fx-font-family: monospace;"/>
+                      <Label fx:id="billTotal" style="-fx-text-fill: #00FF88; -fx-font-size: 20px; -fx-font-weight: bold; -fx-font-family: monospace;"/></HBox>
+
+                <HBox alignment="CENTER_LEFT" spacing="10">
+                    <Label text="Discount : " style="-fx-text-fill: #64748b; -fx-min-width: 100; -fx-font-family: monospace;"/>
+                    <TextField fx:id="discountField" promptText="0" prefWidth="70"
+                               styleClass="input-field" style="-fx-font-size: 13px; -fx-padding: 8 10 8 10;"/>
+                    <Label text="percent" style="-fx-text-fill: #64748b; -fx-font-family: monospace;"/>
+                </HBox>
+
+                <Button text="CONFIRM EXIT - GENERATE RECEIPT"
+                        styleClass="touch-btn-red" maxWidth="Infinity" onAction="#handleExit"/>
+            </VBox>
+
+            <Label fx:id="exitErrorLabel" text=""
+                   style="-fx-text-fill: #00FF88; -fx-font-size: 12px; -fx-font-family: monospace;"/>
+
+            <VBox spacing="8" VBox.vgrow="ALWAYS">
+                <Label text="Receipt"
+                       style="-fx-text-fill: white; -fx-font-size: 15px; -fx-font-weight: bold; -fx-font-family: monospace;"/>
+                <TextArea fx:id="receiptArea" VBox.vgrow="ALWAYS" editable="false"
+                          style="-fx-background-color: #080C14; -fx-text-fill: #00FF88;
+                                 -fx-font-family: monospace; -fx-font-size: 13px;
+                                 -fx-border-color: #1E3A5F; -fx-border-width: 1;
+                                 -fx-background-radius: 8; -fx-border-radius: 8;"
+                          promptText="Receipt will appear here after exit..."/>
+            </VBox>
+        </VBox>
+    </HBox>
+</VBox>

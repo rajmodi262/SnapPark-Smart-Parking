@@ -1,0 +1,285 @@
+.root-pane { -fx-background-color: #0a0d14; }
+.login-box {
+    -fx-background-color: #111621;
+    -fx-background-radius: 12;
+    -fx-border-color: #1e2d47;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-min-width: 400;
+    -fx-max-width: 400;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 30, 0, 0, 8);
+}
+.logo-letter { -fx-text-fill: #00c2ff; -fx-font-size: 52px; -fx-font-weight: bold; }
+.logo-title { -fx-text-fill: white; -fx-font-size: 28px; -fx-font-weight: bold; }
+.logo-sub { -fx-text-fill: #64748b; -fx-font-size: 13px; }
+.field-label { -fx-text-fill: #94a3b8; -fx-font-size: 12px; }
+.input-field {
+    -fx-background-color: #1a2133;
+    -fx-text-fill: white;
+    -fx-prompt-text-fill: #475569;
+    -fx-border-color: #1e2d47;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 12;
+    -fx-font-size: 14px;
+}
+.input-field:focused { -fx-border-color: #00c2ff; }
+.login-btn {
+    -fx-background-color: #00c2ff;
+    -fx-text-fill: #0a0d14;
+    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+    -fx-background-radius: 6;
+}
+.login-btn:hover { -fx-background-color: #38d4ff; }
+.error-label { -fx-text-fill: #f43f5e; -fx-font-size: 12px; }
+.hint-label { -fx-text-fill: #475569; -fx-font-size: 11px; }
+.sidebar {
+    -fx-background-color: #111621;
+    -fx-border-color: #1e2d47;
+    -fx-border-width: 0 1 0 0;
+    -fx-min-width: 220;
+    -fx-max-width: 220;
+}
+.sidebar-title { -fx-text-fill: #00c2ff; -fx-font-size: 18px; -fx-font-weight: bold; }
+.nav-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #64748b;
+    -fx-font-size: 13px;
+    -fx-alignment: CENTER-LEFT;
+    -fx-padding: 12 20 12 20;
+    -fx-cursor: hand;
+    -fx-max-width: Infinity;
+    -fx-border-width: 0 0 0 2;
+    -fx-border-color: transparent;
+}
+.nav-btn:hover { -fx-background-color: #1a2133; -fx-text-fill: #e2e8f0; }
+.nav-btn-active { -fx-background-color: rgba(0,194,255,0.08); -fx-text-fill: #00c2ff; -fx-border-color: #00c2ff; }
+.stat-card {
+    -fx-background-color: #111621;
+    -fx-background-radius: 10;
+    -fx-border-color: #1e2d47;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+    -fx-padding: 20;
+}
+.stat-number { -fx-text-fill: white; -fx-font-size: 36px; -fx-font-weight: bold; }
+.stat-label { -fx-text-fill: #64748b; -fx-font-size: 11px; }
+.slot-available { -fx-background-color: #166534; -fx-text-fill: #4ade80; -fx-background-radius: 6; -fx-cursor: hand; -fx-min-width: 60; -fx-min-height: 50; }
+.slot-occupied { -fx-background-color: #7f1d1d; -fx-text-fill: #fca5a5; -fx-background-radius: 6; -fx-min-width: 60; -fx-min-height: 50; }
+.slot-locking { -fx-background-color: #78350f; -fx-text-fill: #fcd34d; -fx-background-radius: 6; -fx-min-width: 60; -fx-min-height: 50; }
+.section-title { -fx-text-fill: white; -fx-font-size: 20px; -fx-font-weight: bold; }
+.content-area { -fx-background-color: #0a0d14; -fx-padding: 32; }
+
+/* ── HUD / GAMING THEME ───────────────────────────────── */
+.hud-bar {
+    -fx-background-color: #0A0F1A;
+    -fx-border-color: #00C2FF;
+    -fx-font-family: monospace;
+}
+.hud-title {
+    -fx-text-fill: #00C2FF;
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-font-family: monospace;
+}
+.hud-btn {
+    -fx-background-color: #0D1525;
+    -fx-text-fill: #00C2FF;
+    -fx-border-color: #00C2FF;
+    -fx-border-width: 1;
+    -fx-font-family: monospace;
+    -fx-font-size: 11px;
+    -fx-cursor: hand;
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+}
+.hud-btn:hover { -fx-background-color: #162030; }
+.hud-stat-green { -fx-text-fill: #00FF88; -fx-font-family: monospace; -fx-font-weight: bold; }
+.hud-stat-red   { -fx-text-fill: #FF2244; -fx-font-family: monospace; -fx-font-weight: bold; }
+.hud-stat-gold  { -fx-text-fill: #FFB800; -fx-font-family: monospace; -fx-font-weight: bold; }
+.scanline-label { -fx-text-fill: #FFB800; -fx-font-family: monospace; -fx-font-size: 11px; -fx-background-color: #080C14; }
+/* ── ANIMATIONS ───────────────────────────────────────────── */
+@keyframes fadeIn       { from { opacity: 0; translate: 0 18px; } to { opacity: 1; translate: 0 0; } }
+@keyframes fadeSlideIn  { from { opacity: 0; translate: -24px 0; } to { opacity: 1; translate: 0 0; } }
+@keyframes countUp      { from { opacity: 0; scale: 0.7; } to { opacity: 1; scale: 1; } }
+@keyframes pulseGreen   { 0%,100% { -fx-effect: dropshadow(gaussian,#00FF88,8,0.6,0,0); } 50% { -fx-effect: dropshadow(gaussian,#00FF88,22,0.9,0,0); } }
+@keyframes pulseRed     { 0%,100% { -fx-effect: dropshadow(gaussian,#FF2244,8,0.6,0,0); } 50% { -fx-effect: dropshadow(gaussian,#FF2244,22,0.9,0,0); } }
+@keyframes pulseBlue    { 0%,100% { -fx-effect: dropshadow(gaussian,#00C2FF,8,0.6,0,0); } 50% { -fx-effect: dropshadow(gaussian,#00C2FF,22,0.9,0,0); } }
+
+/* ── ANIMATED STAT CARDS ──────────────────────────────────── */
+.stat-card-green {
+    -fx-background-color: #0A1A10;
+    -fx-background-radius: 12;
+    -fx-border-color: #00FF88;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-padding: 20;
+    -fx-effect: dropshadow(gaussian, #00FF88, 12, 0.4, 0, 0);
+}
+.stat-card-red {
+    -fx-background-color: #1A0A0A;
+    -fx-background-radius: 12;
+    -fx-border-color: #FF2244;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-padding: 20;
+    -fx-effect: dropshadow(gaussian, #FF2244, 12, 0.4, 0, 0);
+}
+.stat-card-blue {
+    -fx-background-color: #0A0F1A;
+    -fx-background-radius: 12;
+    -fx-border-color: #00C2FF;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-padding: 20;
+    -fx-effect: dropshadow(gaussian, #00C2FF, 12, 0.4, 0, 0);
+}
+.stat-card-purple {
+    -fx-background-color: #100A1A;
+    -fx-background-radius: 12;
+    -fx-border-color: #A855F7;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-padding: 20;
+    -fx-effect: dropshadow(gaussian, #A855F7, 12, 0.4, 0, 0);
+}
+.stat-num-green  { -fx-text-fill: #00FF88; -fx-font-size: 38px; -fx-font-weight: bold; }
+.stat-num-red    { -fx-text-fill: #FF2244; -fx-font-size: 38px; -fx-font-weight: bold; }
+.stat-num-blue   { -fx-text-fill: #00C2FF; -fx-font-size: 38px; -fx-font-weight: bold; }
+.stat-num-purple { -fx-text-fill: #A855F7; -fx-font-size: 38px; -fx-font-weight: bold; }
+
+/* ── LIVE CLOCK ───────────────────────────────────────────── */
+.live-clock {
+    -fx-text-fill: #00C2FF;
+    -fx-font-size: 13px;
+    -fx-font-family: monospace;
+    -fx-effect: dropshadow(gaussian, #00C2FF, 6, 0.5, 0, 0);
+}
+.pulse-dot {
+    -fx-background-color: #00FF88;
+    -fx-background-radius: 5;
+    -fx-min-width: 8;
+    -fx-min-height: 8;
+    -fx-max-width: 8;
+    -fx-max-height: 8;
+    -fx-effect: dropshadow(gaussian, #00FF88, 8, 0.8, 0, 0);
+}
+
+/* ── NAV BUTTON UPGRADED ──────────────────────────────────── */
+.nav-btn-v2 {
+    -fx-background-color: transparent;
+    -fx-text-fill: #64748b;
+    -fx-font-size: 13px;
+    -fx-alignment: CENTER-LEFT;
+    -fx-padding: 13 20 13 20;
+    -fx-cursor: hand;
+    -fx-max-width: Infinity;
+    -fx-border-width: 0 0 0 2;
+    -fx-border-color: transparent;
+    -fx-font-family: monospace;
+}
+.nav-btn-v2:hover {
+    -fx-background-color: #111D2E;
+    -fx-text-fill: #E2E8F0;
+    -fx-border-color: #1e2d47;
+}
+.nav-btn-active-v2 {
+    -fx-background-color: rgba(0,194,255,0.10);
+    -fx-text-fill: #00C2FF;
+    -fx-border-color: #00C2FF;
+    -fx-effect: dropshadow(gaussian, #00C2FF, 6, 0.3, 0, 0);
+}
+
+/* ── SCREEN CONTENT FADE ──────────────────────────────────── */
+.content-fade { -fx-opacity: 1; }
+
+/* ── TOUCH BUTTONS ────────────────────────────────────────── */
+.touch-btn-green {
+    -fx-background-color: #003320;
+    -fx-text-fill: #00FF88;
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+    -fx-font-family: monospace;
+    -fx-background-radius: 16;
+    -fx-border-color: #00FF88;
+    -fx-border-radius: 16;
+    -fx-border-width: 2;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, #00FF88, 16, 0.5, 0, 0);
+    -fx-min-height: 80;
+}
+.touch-btn-green:hover {
+    -fx-background-color: #004D2E;
+    -fx-effect: dropshadow(gaussian, #00FF88, 28, 0.8, 0, 0);
+}
+.touch-btn-red {
+    -fx-background-color: #330010;
+    -fx-text-fill: #FF2244;
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+    -fx-font-family: monospace;
+    -fx-background-radius: 16;
+    -fx-border-color: #FF2244;
+    -fx-border-radius: 16;
+    -fx-border-width: 2;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, #FF2244, 16, 0.5, 0, 0);
+    -fx-min-height: 80;
+}
+.touch-btn-red:hover {
+    -fx-background-color: #4D0018;
+    -fx-effect: dropshadow(gaussian, #FF2244, 28, 0.8, 0, 0);
+}
+
+/* ── INPUT FIELD GLOW ─────────────────────────────────────── */
+.input-field:focused {
+    -fx-border-color: #00C2FF;
+    -fx-effect: dropshadow(gaussian, #00C2FF, 10, 0.5, 0, 0);
+}
+/* -- TEXTAREA DARK FIX -- */
+.text-area { -fx-background-color: transparent; }
+.text-area .content { -fx-background-color: #080C14; -fx-text-fill: #00FF88; }
+.text-area .scroll-pane { -fx-background-color: transparent; }
+.text-area .scroll-pane .viewport { -fx-background-color: transparent; }
+.text-area .scroll-pane .content { -fx-background-color: #080C14; }
+/* -- SOLID BUTTON VARIANTS (no glow, text always readable) -- */
+.touch-btn-solid-green {
+    -fx-background-color: #00FF88;
+    -fx-text-fill: #0A1A0A;
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-font-family: monospace;
+    -fx-background-radius: 12;
+    -fx-border-color: #00C060;
+    -fx-border-radius: 12;
+    -fx-border-width: 2;
+    -fx-cursor: hand;
+    -fx-min-height: 62;
+}
+.touch-btn-solid-amber {
+    -fx-background-color: #FFB800;
+    -fx-text-fill: #0A0800;
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-font-family: monospace;
+    -fx-background-radius: 12;
+    -fx-border-color: #CC9200;
+    -fx-border-radius: 12;
+    -fx-border-width: 2;
+    -fx-cursor: hand;
+    -fx-min-height: 62;
+}
+.touch-btn-solid-red {
+    -fx-background-color: #FF2244;
+    -fx-text-fill: white;
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-font-family: monospace;
+    -fx-background-radius: 12;
+    -fx-border-color: #CC0022;
+    -fx-border-radius: 12;
+    -fx-border-width: 2;
+    -fx-cursor: hand;
+    -fx-min-height: 62;
+}

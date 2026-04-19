@@ -1,0 +1,3375 @@
+﻿========== D:\parksmart\parksmart\src\main\java\com\parksmart\concurrent\LockManager.java ==========
+package com.parksmart.concurrent;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class LockManager {
+    private static LockManager instance;
+    private final ConcurrentHashMap<Integer, SlotLock> locks = new ConcurrentHashMap<>();
+    private static final int LOCK_TIMEOUT_SECONDS = 300; // 5 minutes
+
+    private LockManager() {}
+
+    public static synchronized LockManager getInstance() {
+        if (instance == null) {
+            instance = new LockManager();
+        }
+        return instance;
+    }
+
+    // Returns true if lock was acquired, false if slot already locked
+    public boolean acquireLock(int slotId, int userId) {
+        SlotLock newLock = new SlotLock(slotId, userId, LOCK_TIMEOUT_SECONDS);
+        SlotLock existing = locks.putIfAbsent(slotId, newLock);
+        if (existing != null && existing.isExpired()) {
+            // Old lock expired, replace it
+            locks.put(slotId, newLock);
+            return true;
+        }
+        return existing == null;
+    }
+
+    public boolean releaseLock(int slotId, int userId) {
+        SlotLock lock = locks.get(slotId);
+        if (lock != null && lock.getUserId() == userId) {
+            locks.remove(slotId);
+            return true;
+        }
+        return false;
+    }
+
+    public boolean isLocked(int slotId) {
+        SlotLock lock = locks.get(slotId);
+        if (lock == null) return false;
+        if (lock.isExpired()) {
+            locks.remove(slotId);
+            return false;
+        }
+        return true;
+    }
+
+    public SlotLock getLock(int slotId) {
+        return locks.get(slotId);
+    }
+
+    // Returns list of expired lock slot IDs
+    public List<Integer> getExpiredLocks() {
+        List<Integer> expired = new ArrayList<>();
+        locks.forEach((slotId, lock) -> {
+            if (lock.isExpired()) expired.add(slotId);
+        });
+        return expired;
+    }
+
+    public void removeExpiredLocks() {
+        locks.entrySet().removeIf(entry -> entry.getValue().isExpired());
+    }
+
+    public int getLockedCount() {
+        return locks.size();
+    }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\concurrent\LockSweeper.java ==========
+package com.parksmart.concurrent;
+
+import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+import com.parksmart.dao.SlotDAO;
+import com.parksmart.model.enums.SlotStatus;
+
+public class LockSweeper {
+    private static LockSweeper instance;
+    private final ScheduledExecutorService scheduler;
+    private final LockManager lockManager;
+    private final SlotDAO slotDAO;
+    private Runnable onLockExpired; // UI callback
+
+    private LockSweeper() {
+        this.scheduler = Executors.newSingleThreadScheduledExecutor();
+        this.lockManager = LockManager.getInstance();
+        this.slotDAO = new SlotDAO();
+    }
+
+    public static LockSweeper getInstance() {
+        if (instance == null) {
+            instance = new LockSweeper();
+        }
+        return instance;
+    }
+
+    public void setOnLockExpired(Runnable callback) {
+        this.onLockExpired = callback;
+    }
+
+    public void start() {
+        scheduler.scheduleAtFixedRate(() -> {
+            List<Integer> expired = lockManager.getExpiredLocks();
+            for (int slotId : expired) {
+                slotDAO.updateStatus(slotId, SlotStatus.AVAILABLE);
+                System.out.println("Lock expired for slot: " + slotId);
+            }
+            lockManager.removeExpiredLocks();
+            if (!expired.isEmpty() && onLockExpired != null) {
+                onLockExpired.run(); // Notify UI
+            }
+        }, 30, 30, TimeUnit.SECONDS);
+        System.out.println("LockSweeper started!");
+    }
+
+    public void stop() {
+        scheduler.shutdownNow();
+    }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\concurrent\SlotLock.java ==========
+package com.parksmart.concurrent;
+
+import java.time.LocalDateTime;
+
+public class SlotLock {
+    private final int slotId;
+    private final int userId;
+    private final LocalDateTime expiryTime;
+
+    public SlotLock(int slotId, int userId, int timeoutSeconds) {
+        this.slotId = slotId;
+        this.userId = userId;
+        this.expiryTime = LocalDateTime.now().plusSeconds(timeoutSeconds);
+    }
+
+    public int getSlotId() { return slotId; }
+    public int getUserId() { return userId; }
+    public LocalDateTime getExpiryTime() { return expiryTime; }
+
+    public boolean isExpired() {
+        return LocalDateTime.now().isAfter(expiryTime);
+    }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\controller\AnalyticsController.java ==========
+package com.parksmart.controller;
+
+import com.parksmart.service.AnalyticsService;
+import javafx.application.Platform;
+import javafx.fxml.FXML;
+import javafx.fxml.Initializable;
+import javafx.scene.chart.*;
+import javafx.scene.control.Label;
+import java.net.URL;
+import java.util.Map;
+import java.util.ResourceBundle;
+
+public class AnalyticsController implements Initializable {
+
+    @FXML private Label todayRevenue;
+    @FXML private Label totalRevenue;
+    @FXML private Label totalVehicles;
+    @FXML private Label avgRevenue;
+    @FXML private BarChart<String, Number> revenueByTypeChart;
+    @FXML private PieChart utilizationChart;
+
+    private final AnalyticsService analytics = AnalyticsService.getInstance();
+
+    @Override
+    public void initialize(URL url, ResourceBundle rb) {
+        loadStats();
+        loadBarChart();
+        loadPieChart();
+    }
+
+    private void loadStats() {
+        double today = analytics.getTodayRevenue();
+        double total = analytics.getTotalRevenue();
+        int vehicles = analytics.getTotalVehicles();
+        double avg = vehicles > 0 ? total / vehicles : 0;
+        todayRevenue.setText("Rs. " + String.format("%.0f", today));
+        totalRevenue.setText("Rs. " + String.format("%.0f", total));
+        totalVehicles.setText(String.valueOf(vehicles));
+        avgRevenue.setText("Rs. " + String.format("%.0f", avg));
+    }
+
+    private void loadBarChart() {
+        revenueByTypeChart.getData().clear();
+        revenueByTypeChart.setLegendVisible(false);
+        revenueByTypeChart.setAnimated(true);
+        Map<String, Double> data = analytics.getRevenueByVehicleType();
+        XYChart.Series<String, Number> series = new XYChart.Series<>();
+        series.setName("Revenue");
+        series.getData().add(new XYChart.Data<>("BIKE", data.getOrDefault("BIKE", 0.0)));
+        series.getData().add(new XYChart.Data<>("CAR", data.getOrDefault("CAR", 0.0)));
+        series.getData().add(new XYChart.Data<>("SUV", data.getOrDefault("SUV", 0.0)));
+        revenueByTypeChart.getData().add(series);
+        Platform.runLater(() -> {
+            revenueByTypeChart.lookupAll(".chart-bar").forEach(n -> {
+                String style = n.getStyleClass().toString();
+                if (style.contains("data0")) n.setStyle("-fx-bar-fill: #06b6d4;");
+                else if (style.contains("data1")) n.setStyle("-fx-bar-fill: #3b82f6;");
+                else if (style.contains("data2")) n.setStyle("-fx-bar-fill: #a855f7;");
+            });
+        });
+    }
+
+    private void loadPieChart() {
+        utilizationChart.getData().clear();
+        utilizationChart.setAnimated(true);
+        Map<String, Integer> data = analytics.getSlotUtilization();
+        String[] colors = {"#22c55e", "#f43f5e", "#f59e0b", "#00c2ff"};
+        int i = 0;
+        for (Map.Entry<String, Integer> entry : data.entrySet()) {
+            if (entry.getValue() > 0) {
+                PieChart.Data slice = new PieChart.Data(entry.getKey() + " (" + entry.getValue() + ")", entry.getValue());
+                utilizationChart.getData().add(slice);
+            }
+        }
+        Platform.runLater(() -> {
+            int idx = 0;
+            for (PieChart.Data d : utilizationChart.getData()) {
+                d.getNode().setStyle("-fx-pie-color: " + colors[idx % colors.length] + ";");
+                idx++;
+            }
+        });
+    }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\controller\DashboardController.java ==========
+package com.parksmart.controller;
+
+import com.parksmart.service.AuthService;
+import com.parksmart.service.ParkingService;
+import com.parksmart.dao.SessionDAO;
+import javafx.animation.*;
+import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.fxml.Initializable;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
+import javafx.scene.Scene;
+import javafx.stage.Stage;
+import javafx.util.Duration;
+import java.net.URL;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ResourceBundle;
+
+public class DashboardController implements Initializable {
+
+    @FXML private Label     clockLabel;
+    @FXML private Label     activeSessionsLabel;
+    @FXML private Label     userLabel;
+    @FXML private StackPane contentArea;
+    @FXML private Button    btnDashboard;
+    @FXML private Button    btnSlots;
+    @FXML private Button    btnEntry;
+    @FXML private Button    btnExit;
+    @FXML private Button    btnAnalytics;
+
+    private final AuthService   authService   = AuthService.getInstance();
+    private final ParkingService parkingService = ParkingService.getInstance();
+    private final SessionDAO    sessionDAO    = new SessionDAO();
+    private final DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("HH:mm:ss");
+    private Button activeBtn = null;
+
+    @Override
+    public void initialize(URL url, ResourceBundle rb) {
+        var user = authService.getCurrentUser();
+        if (user != null)
+            userLabel.setText(user.getRole().name() + " - " + user.getUsername());
+
+        startClock();
+        loadView("home.fxml");
+        setActive(btnDashboard);
+    }
+
+    // â”€â”€ LIVE CLOCK â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    private void startClock() {
+        Timeline clock = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
+            clockLabel.setText(LocalTime.now().format(timeFmt));
+            int active = sessionDAO.findAllActive().size();
+            activeSessionsLabel.setText(active + " active session" + (active == 1 ? "" : "s"));
+        }));
+        clock.setCycleCount(Animation.INDEFINITE);
+        clock.play();
+        clockLabel.setText(LocalTime.now().format(timeFmt));
+    }
+
+    // â”€â”€ SCREEN TRANSITIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    private void loadView(String fxml) {
+        try {
+            FXMLLoader loader = new FXMLLoader(
+                getClass().getResource("/com/parksmart/fxml/" + fxml));
+            Pane view = loader.load();
+            view.setOpacity(0);
+            contentArea.getChildren().setAll(view);
+            FadeTransition ft = new FadeTransition(Duration.millis(280), view);
+            ft.setFromValue(0); ft.setToValue(1); ft.play();
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    // â”€â”€ NAV ACTIVE STATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    private void setActive(Button btn) {
+        if (activeBtn != null) activeBtn.getStyleClass().remove("nav-btn-active-v2");
+        activeBtn = btn;
+        if (btn != null) btn.getStyleClass().add("nav-btn-active-v2");
+    }
+
+    @FXML public void showDashboard() { loadView("home.fxml");      setActive(btnDashboard); }
+    @FXML public void showSlots()     { loadView("grid3d.fxml");     setActive(btnSlots);     }
+    @FXML public void showEntry()     { loadView("entry.fxml");      setActive(btnEntry);     }
+    @FXML public void showExit()      { loadView("exit.fxml");       setActive(btnExit);      }
+    @FXML public void showAnalytics() { loadView("analytics.fxml");  setActive(btnAnalytics); }
+
+    @FXML
+    public void handleLogout() {
+        authService.logout();
+        try {
+            FXMLLoader loader = new FXMLLoader(
+                getClass().getResource("/com/parksmart/fxml/welcome.fxml"));
+            Scene scene = new Scene(loader.load(), 900, 600);
+            scene.getStylesheets().add(
+                getClass().getResource("/com/parksmart/css/dark-theme.css").toExternalForm());
+            Stage stage = (Stage) clockLabel.getScene().getWindow();
+            FadeTransition ft = new FadeTransition(Duration.millis(300),
+                clockLabel.getScene().getRoot());
+            ft.setToValue(0);
+            ft.setOnFinished(e -> { com.parksmart.Main.switchScene("welcome.fxml"); });
+            ft.play();
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\controller\HomeController.java ==========
+package com.parksmart.controller;
+
+import com.parksmart.service.AnalyticsService;
+import com.parksmart.service.AuthService;
+import com.parksmart.service.ParkingService;
+import javafx.animation.*;
+import javafx.fxml.FXML;
+import javafx.fxml.Initializable;
+import javafx.scene.control.Label;
+import javafx.util.Duration;
+import java.net.URL;
+import java.util.ResourceBundle;
+
+public class HomeController implements Initializable {
+
+    @FXML private Label welcomeLabel;
+    @FXML private Label availableCount;
+    @FXML private Label occupiedCount;
+    @FXML private Label totalCount;
+    @FXML private Label revenueCount;
+
+    private final AuthService      authService      = AuthService.getInstance();
+    private final ParkingService   parkingService   = ParkingService.getInstance();
+    private final AnalyticsService analyticsService = AnalyticsService.getInstance();
+
+    @Override
+    public void initialize(URL url, ResourceBundle rb) {
+        var user = authService.getCurrentUser();
+        if (user != null)
+            welcomeLabel.setText("Welcome back, " + user.getName() + "!");
+
+        long avail   = parkingService.getAvailableCount();
+        long occ     = parkingService.getOccupiedCount();
+        long total   = parkingService.getAllSlots().size();
+        double rev   = analyticsService.getTodayRevenue();
+
+        animateCount(availableCount, (int) avail,  false);
+        animateCount(occupiedCount,  (int) occ,    false);
+        animateCount(totalCount,     (int) total,   false);
+        animateRevenue(revenueCount, rev);
+    }
+
+    private void animateCount(Label label, int target, boolean addPlus) {
+        final int[] current = {0};
+        int steps = 28;
+        double delay = 600.0 / steps;
+        Timeline tl = new Timeline();
+        for (int i = 1; i <= steps; i++) {
+            final int val = (int) Math.round(target * (double) i / steps);
+            tl.getKeyFrames().add(new KeyFrame(Duration.millis(delay * i),
+                e -> label.setText(addPlus && val > 0 ? "+" + val : String.valueOf(val))));
+        }
+        tl.play();
+    }
+
+    private void animateRevenue(Label label, double target) {
+        final double[] current = {0};
+        int steps = 28;
+        double delay = 700.0 / steps;
+        Timeline tl = new Timeline();
+        for (int i = 1; i <= steps; i++) {
+            final double val = target * (double) i / steps;
+            tl.getKeyFrames().add(new KeyFrame(Duration.millis(delay * i),
+                e -> label.setText("Rs." + (int) val)));
+        }
+        tl.play();
+    }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\controller\KioskExitController.java ==========
+package com.parksmart.controller;
+
+import com.parksmart.dao.SessionDAO;
+import com.parksmart.dao.TransactionDAO;
+import com.parksmart.dao.VehicleDAO;
+import com.parksmart.model.ParkingSession;
+import com.parksmart.model.ParkingSlot;
+import com.parksmart.model.Transaction;
+import com.parksmart.model.Vehicle;
+import com.parksmart.service.BillingService;
+import com.parksmart.service.ParkingService;
+import com.parksmart.service.QRCodeService;
+import javafx.animation.*;
+import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.fxml.Initializable;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.stage.Stage;
+import javafx.util.Duration;
+import java.net.URL;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.ResourceBundle;
+
+public class KioskExitController implements Initializable {
+
+    @FXML private StackPane rootPane;
+    @FXML private VBox  step1, step2, step3;
+    @FXML private Label ticketDisplay, exitStatus;
+    @FXML private Label billPlate, billOwner, billSlot, billEntry, billDuration, billTotal;
+    @FXML private TextArea  receiptArea;
+    @FXML private ImageView receiptQR;
+    @FXML private Label cdLabel;
+
+    private final SessionDAO     sessionDAO     = new SessionDAO();
+    private final VehicleDAO     vehicleDAO     = new VehicleDAO();
+    private final TransactionDAO transactionDAO = new TransactionDAO();
+    private final BillingService billingService = BillingService.getInstance();
+    private final ParkingService parkingService = ParkingService.getInstance();
+
+    private final StringBuilder typed  = new StringBuilder();
+    private ParkingSession currentSession;
+    private Vehicle        currentVehicle;
+    private ParkingSlot    currentSlot;
+    private double         currentAmount;
+    private Timeline       cdTL;
+    private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
+
+    @Override
+    public void initialize(URL url, ResourceBundle rb) { updateDisplay(); }
+
+    @FXML public void num0(){digit("0");} @FXML public void num1(){digit("1");}
+    @FXML public void num2(){digit("2");} @FXML public void num3(){digit("3");}
+    @FXML public void num4(){digit("4");} @FXML public void num5(){digit("5");}
+    @FXML public void num6(){digit("6");} @FXML public void num7(){digit("7");}
+    @FXML public void num8(){digit("8");} @FXML public void num9(){digit("9");}
+    @FXML public void numDel(){ if(typed.length()>0){typed.deleteCharAt(typed.length()-1);updateDisplay();} }
+    @FXML public void numClear(){ typed.setLength(0);updateDisplay();exitStatus.setText(""); }
+
+    private void digit(String d){ if(typed.length()<8){typed.append(d);updateDisplay();} }
+    private void updateDisplay(){ ticketDisplay.setText(typed.length()==0?"_ _ _ _ _":typed.toString()); }
+
+    @FXML public void handleFind() {
+        String s=typed.toString().trim();
+        if(s.isEmpty()){exitStatus.setText("Please enter your Ticket ID!");return;}
+        int id;
+        try{id=Integer.parseInt(s);}catch(Exception e){exitStatus.setText("Invalid Ticket ID!");return;}
+        List<ParkingSession> active=sessionDAO.findAllActive();
+        currentSession=active.stream().filter(sess->sess.getId()==id).findFirst().orElse(null);
+        if(currentSession==null){exitStatus.setText("Ticket #"+id+" not found or already checked out!");return;}
+        currentVehicle=vehicleDAO.findAll().stream().filter(v->v.getId()==currentSession.getVehicleId()).findFirst().orElse(null);
+        currentSlot=parkingService.getAllSlots().stream().filter(sl->sl.getId()==currentSession.getSlotId()).findFirst().orElse(null);
+        LocalDateTime now=LocalDateTime.now();
+        currentAmount=billingService.calculateFee(currentVehicle.getVehicleType(),currentSession.getEntryTime(),now);
+        java.time.Duration dur=java.time.Duration.between(currentSession.getEntryTime(),now);
+        billPlate.setText(currentVehicle.getLicensePlate());
+        billOwner.setText(currentVehicle.getOwnerName());
+        billSlot.setText(currentSlot!=null?currentSlot.getSlotNumber():"?");
+        billEntry.setText(currentSession.getEntryTime().format(FMT));
+        billDuration.setText(dur.toHours()+"h "+dur.toMinutesPart()+"m");
+        billTotal.setText("Rs. "+currentAmount);
+        show(2);
+    }
+
+    @FXML public void handlePay() {
+        if(currentSession==null) return;
+        LocalDateTime exitTime=LocalDateTime.now();
+        sessionDAO.endSession(currentSession.getId(),exitTime);
+        parkingService.releaseSlot(currentSession.getSlotId());
+        String receipt=billingService.generateReceipt(
+            currentVehicle.getLicensePlate(),
+            currentSlot!=null?currentSlot.getSlotNumber():"?",
+            currentSession.getEntryTime(),exitTime,currentAmount,0);
+        Transaction t=new Transaction();
+        t.setSessionId(currentSession.getId());t.setAmount(currentAmount);t.setDiscount(0);
+        t.setPaymentTime(exitTime);t.setReceipt(receipt);
+        transactionDAO.save(t);
+        receiptArea.setText(receipt);
+        receiptQR.setImage(QRCodeService.generateQR(
+            "RECEIPT:TKT-"+currentSession.getId()+"|"+currentVehicle.getLicensePlate()+"|Rs."+currentAmount,
+            200, Color.web("#00FF88"), Color.web("#05080F")));
+        show(3); startCd();
+    }
+
+    private void startCd(){
+        final int[]r={20};
+        cdTL=new Timeline(new KeyFrame(Duration.seconds(1),e->{r[0]--;if(cdLabel!=null)cdLabel.setText("Going home in "+r[0]+"s");if(r[0]<=0){cdTL.stop();handleDone();}}));
+        cdTL.setCycleCount(20);cdTL.play();
+    }
+
+    @FXML public void handleDone(){if(cdTL!=null)cdTL.stop();load("welcome.fxml");}
+    @FXML public void handleBack(){load("welcome.fxml");}
+    @FXML public void handleStep2Back(){show(1);typed.setLength(0);updateDisplay();exitStatus.setText("");}
+
+    private void show(int s){step1.setVisible(s==1);step1.setManaged(s==1);step2.setVisible(s==2);step2.setManaged(s==2);step3.setVisible(s==3);step3.setManaged(s==3);}
+    private void load(String f){ com.parksmart.Main.switchScene(f); }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\controller\KioskParkController.java ==========
+package com.parksmart.controller;
+import com.parksmart.dao.SessionDAO;
+import com.parksmart.dao.VehicleDAO;
+import com.parksmart.model.ParkingSession;
+import com.parksmart.model.ParkingSlot;
+import com.parksmart.model.Vehicle;
+import com.parksmart.model.enums.SlotStatus;
+import com.parksmart.model.enums.VehicleType;
+import com.parksmart.service.ParkingService;
+import com.parksmart.service.QRCodeService;
+import javafx.animation.*;
+import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.fxml.Initializable;
+import javafx.scene.Scene;
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.*;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.stage.Stage;
+import javafx.util.Duration;
+import java.net.URL;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.stream.Collectors;
+public class KioskParkController implements Initializable {
+    @FXML private StackPane rootPane;
+    @FXML private VBox step1, step2, step3;
+    @FXML private StackPane gridContainer;
+    @FXML private Label step1Status, selectedSlotInfo;
+    @FXML private HBox step1NextBar;
+    @FXML private ComboBox<String> floorBox;
+    @FXML private Button btnAll, btnTwo, btnFour;
+    @FXML private Label slotNumLabel, slotTypeLabel;
+    @FXML private TextField nameField, plateField;
+    @FXML private Label step2Error;
+    @FXML private ImageView qrView;
+    @FXML private Label tktId, tktName, tktPlate, tktSlot, tktType, tktTime, cdLabel;
+    private final ParkingService parkingService = ParkingService.getInstance();
+    private final VehicleDAO vehicleDAO = new VehicleDAO();
+    private final SessionDAO sessionDAO = new SessionDAO();
+    private Canvas canvas;
+    private boolean pulse = false;
+    private String filter = "ALL";
+    private int floor = 1;
+    private Timeline pulseTL, cdTL;
+    private ParkingSlot selected;
+    private List<ParkingSlot> slots = new ArrayList<>();
+    private static final int UID = 1;
+    private static final double TW=150, TD=170, TH=22, GAP=24;
+    private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
+    @Override
+    public void initialize(URL url, ResourceBundle rb) {
+        floorBox.getItems().addAll("Floor 1", "Floor 2");
+        floorBox.getSelectionModel().selectFirst();
+        floorBox.setOnAction(e -> { floor = floorBox.getSelectionModel().getSelectedIndex() + 1; refresh(); });
+        canvas = new Canvas(800, 600);
+        canvas.setOnMouseClicked(e -> onClick(e.getX(), e.getY()));
+        gridContainer.getChildren().add(canvas);
+        gridContainer.layoutBoundsProperty().addListener((obs, oldVal, newVal) -> {
+            double w = newVal.getWidth(), h = newVal.getHeight();
+            if (w > 10 && h > 10) { canvas.setWidth(w); canvas.setHeight(h); draw(); }
+        });
+        javafx.application.Platform.runLater(() -> {
+            if (rootPane.getScene() != null) {
+                step1.prefHeightProperty().bind(rootPane.getScene().heightProperty());
+                step1.maxHeightProperty().bind(rootPane.getScene().heightProperty());
+            }
+        });
+        javafx.application.Platform.runLater(() -> { if (rootPane.getScene() != null) { step1.prefHeightProperty().bind(rootPane.getScene().heightProperty()); step1.maxHeightProperty().bind(rootPane.getScene().heightProperty()); } });
+        startPulse();
+        PauseTransition wait = new PauseTransition(Duration.millis(400)); wait.setOnFinished(e -> refresh()); wait.play();
+    }
+    @FXML public void filterAll()  { filter="ALL";  setFBtn(btnAll);  refresh(); }
+    @FXML public void filterTwo()  { filter="TWO";  setFBtn(btnTwo);  refresh(); }
+    @FXML public void filterFour() { filter="FOUR"; setFBtn(btnFour); refresh(); }
+    private void setFBtn(Button a) {
+        String off="-fx-background-color:#0D1525;-fx-background-radius:4;-fx-border-radius:4;-fx-font-family:monospace;-fx-font-size:11px;-fx-cursor:hand;-fx-padding:5 12 5 12;-fx-border-width:1;";
+        if(btnAll!=null)  btnAll.setStyle(off+"-fx-text-fill:#00C2FF;-fx-border-color:#00C2FF;");
+        if(btnTwo!=null)  btnTwo.setStyle(off+"-fx-text-fill:#00FF88;-fx-border-color:#00FF88;");
+        if(btnFour!=null) btnFour.setStyle(off+"-fx-text-fill:#00C2FF;-fx-border-color:#00C2FF;");
+        String on="-fx-font-family:monospace;-fx-font-size:11px;-fx-font-weight:bold;-fx-cursor:hand;-fx-background-radius:4;-fx-padding:5 12 5 12;-fx-text-fill:#0A0F1A;";
+        if(a==btnAll  &&btnAll !=null) btnAll.setStyle(on+"-fx-background-color:#00C2FF;");
+        if(a==btnTwo  &&btnTwo !=null) btnTwo.setStyle(on+"-fx-background-color:#00FF88;");
+        if(a==btnFour &&btnFour!=null) btnFour.setStyle(on+"-fx-background-color:#00C2FF;");
+    }
+    private void refresh() {
+        selected=null;
+        if(step1NextBar!=null){step1NextBar.setVisible(false);step1NextBar.setManaged(false);}
+        if(step1Status!=null) step1Status.setText("Tap a GREEN slot to select it");
+        List<ParkingSlot> all=parkingService.getSlotsByFloor(floor);
+        slots=switch(filter){
+            case "TWO"  -> all.stream().filter(s->s.getType()==VehicleType.BIKE).collect(Collectors.toList());
+            case "FOUR" -> all.stream().filter(s->s.getType()!=VehicleType.BIKE).collect(Collectors.toList());
+            default     -> new ArrayList<>(all);
+        };
+        draw();
+    }
+    private double[] iso(double wx,double wz,double wy,double ox,double oy){
+        return new double[]{ox+(wx-wz)*0.52,oy+(wx+wz)*0.27-wy*0.72};
+    }
+    private void draw(){
+        if(canvas==null)return;
+        double W=canvas.getWidth(),H=canvas.getHeight();
+        if(W<=0||H<=0)return;
+        GraphicsContext gc=canvas.getGraphicsContext2D();
+        gc.clearRect(0,0,W,H);gc.setFill(Color.web("#05080F"));gc.fillRect(0,0,W,H);
+        if(slots.isEmpty()){gc.setFill(Color.web("#00C2FF",0.5));gc.setFont(Font.font("monospace",18));gc.fillText("NO SLOTS",W/2-60,H/2);return;}
+        int total=slots.size(),COLS=Math.min(5,total),ROWS=(int)Math.ceil((double)total/COLS);
+        double sX=TW+GAP,sZ=TD+GAP,cX=(COLS-1)*sX/2.0,cZ=(ROWS-1)*sZ/2.0;
+        double[]topPt=iso(-cX,-cZ,TH,0,0),botPt=iso(cX,cZ,0,0,0);
+        double gridH=botPt[1]-topPt[1];
+        double ox=W/2,oy=H*0.5-gridH*0.3;
+        gc.setStroke(Color.web("#0D2040",0.5));gc.setLineWidth(0.7);
+        for(int i=0;i<=COLS;i++){double wx=i*sX-cX-sX/2;double[]p1=iso(wx,-sZ/2-cZ,0,ox,oy),p2=iso(wx,ROWS*sZ-sZ/2-cZ,0,ox,oy);gc.strokeLine(p1[0],p1[1],p2[0],p2[1]);}
+        for(int i=0;i<=ROWS;i++){double wz=i*sZ-cZ-sZ/2;double[]p1=iso(-sX/2-cX,wz,0,ox,oy),p2=iso(COLS*sX-sX/2-cX,wz,0,ox,oy);gc.strokeLine(p1[0],p1[1],p2[0],p2[1]);}
+        for(int row=ROWS-1;row>=0;row--)for(int col=0;col<COLS;col++){int idx=row*COLS+col;if(idx<slots.size())drawSlot(gc,slots.get(idx),col*sX-cX,row*sZ-cZ,ox,oy);}
+        gc.setStroke(Color.web("#00C2FF",0.3));gc.setLineWidth(1.5);double m=20,s=30;
+        gc.strokeLine(m,m,m+s,m);gc.strokeLine(m,m,m,m+s);gc.strokeLine(W-m,m,W-m-s,m);gc.strokeLine(W-m,m,W-m,m+s);
+        gc.strokeLine(m,H-m,m+s,H-m);gc.strokeLine(m,H-m,m,H-m-s);gc.strokeLine(W-m,H-m,W-m-s,H-m);gc.strokeLine(W-m,H-m,W-m,H-m-s);
+    }
+    private void drawSlot(GraphicsContext gc,ParkingSlot slot,double wx,double wz,double ox,double oy){
+        boolean sel=selected!=null&&selected.getId()==slot.getId();
+        double hw=TW/2,hd=TD/2;
+        Color topC,leftC,rightC,neonC;
+        if(sel){topC=Color.web("#1A4400");leftC=Color.web("#102800");rightC=Color.web("#0A1800");neonC=Color.web("#AAFF00");}
+        else switch(slot.getStatus()){
+            case OCCUPIED->{topC=Color.web("#3D0010");leftC=Color.web("#220008");rightC=Color.web("#150005");neonC=Color.web("#FF2244");}
+            case LOCKING->{topC=pulse?Color.web("#4A3200"):Color.web("#2A1C00");leftC=Color.web("#1A1000");rightC=Color.web("#0F0900");neonC=Color.web("#FFB800");}
+            default->{topC=Color.web("#002B18");leftC=Color.web("#001610");rightC=Color.web("#000D09");neonC=Color.web("#00FF88");}
+        }
+        double[]BFL=iso(wx-hw,wz+hd,0,ox,oy),BFR=iso(wx+hw,wz+hd,0,ox,oy),BBR=iso(wx+hw,wz-hd,0,ox,oy);
+        double[]TFL=iso(wx-hw,wz+hd,TH,ox,oy),TFR=iso(wx+hw,wz+hd,TH,ox,oy),TBL=iso(wx-hw,wz-hd,TH,ox,oy),TBR=iso(wx+hw,wz-hd,TH,ox,oy);
+        gc.setFill(leftC);gc.fillPolygon(new double[]{TFL[0],BFL[0],BFR[0],TFR[0]},new double[]{TFL[1],BFL[1],BFR[1],TFR[1]},4);
+        gc.setFill(rightC);gc.fillPolygon(new double[]{TFR[0],BFR[0],BBR[0],TBR[0]},new double[]{TFR[1],BFR[1],BBR[1],TBR[1]},4);
+        gc.setFill(topC);gc.fillPolygon(new double[]{TFL[0],TFR[0],TBR[0],TBL[0]},new double[]{TFL[1],TFR[1],TBR[1],TBL[1]},4);
+        double na=(slot.getStatus()==SlotStatus.LOCKING&&!pulse)?0.4:1.0;
+        gc.setStroke(neonC);gc.setLineWidth(sel?3:1.8);gc.setGlobalAlpha(na);
+        gc.strokePolygon(new double[]{TFL[0],TFR[0],TBR[0],TBL[0]},new double[]{TFL[1],TFR[1],TBR[1],TBL[1]},4);
+        gc.setGlobalAlpha(1.0);
+        if(slot.getStatus()!=SlotStatus.AVAILABLE)drawVehicle(gc,slot.getType(),wx,wz,ox,oy);
+        double[]lp=iso(wx,wz,TH+2,ox,oy);
+        gc.setFill(neonC);gc.setFont(Font.font("monospace",11));gc.setGlobalAlpha(0.95);
+        gc.fillText(slot.getSlotNumber(),lp[0]-18,lp[1]-2);
+        gc.setFill(Color.web("#4488AA",0.9));gc.setFont(Font.font("monospace",9));
+        gc.fillText(slot.getType()==VehicleType.BIKE?"BIKE":slot.getType()==VehicleType.CAR?"CAR":"SUV",lp[0]-10,lp[1]+10);
+        gc.setGlobalAlpha(1.0);
+    }
+    private void isoBox(GraphicsContext gc,double wx,double wz,double base,double bw,double bd,double bh,Color top,Color left,Color right,double ox,double oy){
+        double hw=bw/2,hd=bd/2;
+        double[]BFL=iso(wx-hw,wz+hd,base,ox,oy),BFR=iso(wx+hw,wz+hd,base,ox,oy),BBR=iso(wx+hw,wz-hd,base,ox,oy);
+        double[]TFL=iso(wx-hw,wz+hd,base+bh,ox,oy),TFR=iso(wx+hw,wz+hd,base+bh,ox,oy),TBL=iso(wx-hw,wz-hd,base+bh,ox,oy),TBR=iso(wx+hw,wz-hd,base+bh,ox,oy);
+        gc.setFill(left);gc.fillPolygon(new double[]{TFL[0],BFL[0],BFR[0],TFR[0]},new double[]{TFL[1],BFL[1],BFR[1],TFR[1]},4);
+        gc.setFill(right);gc.fillPolygon(new double[]{TFR[0],BFR[0],BBR[0],TBR[0]},new double[]{TFR[1],BFR[1],BBR[1],TBR[1]},4);
+        gc.setFill(top);gc.fillPolygon(new double[]{TFL[0],TFR[0],TBR[0],TBL[0]},new double[]{TFL[1],TFR[1],TBR[1],TBL[1]},4);
+    }
+    private void drawVehicle(GraphicsContext gc,VehicleType type,double wx,double wz,double ox,double oy){
+        double base=TH;
+        switch(type){
+            case BIKE->{Color body=Color.web("#CC3300"),bodyD=Color.web("#881100"),metal=Color.web("#888888"),metalD=Color.web("#555555"),wheel=Color.web("#111111"),wheelC=Color.web("#666666"),seat=Color.web("#1A1A1A");
+                isoBox(gc,wx,wz+30,base,8,18,14,wheel,wheel.brighter(),wheel.brighter(),ox,oy);isoBox(gc,wx,wz+30,base+4,4,10,6,wheelC,wheelC.darker(),wheelC.darker(),ox,oy);
+                isoBox(gc,wx,wz-30,base,8,18,14,wheel,wheel.brighter(),wheel.brighter(),ox,oy);isoBox(gc,wx,wz-30,base+4,4,10,6,wheelC,wheelC.darker(),wheelC.darker(),ox,oy);
+                isoBox(gc,wx,wz,base+6,6,44,6,metal,metalD,metalD,ox,oy);isoBox(gc,wx,wz+2,base+2,14,22,12,body,bodyD,bodyD.darker(),ox,oy);
+                isoBox(gc,wx,wz-4,base+14,12,18,8,body.brighter(),body,bodyD,ox,oy);isoBox(gc,wx,wz-16,base+20,10,24,5,seat,seat.brighter(),seat.brighter(),ox,oy);
+                isoBox(gc,wx,wz+22,base+28,28,4,4,metal,metalD,metalD,ox,oy);}
+            case CAR->{Color body=Color.web("#1A3A6A"),bodyL=Color.web("#0F2244"),bodyR=Color.web("#0A1830"),glass=Color.web("#00AADD",0.75),wheel=Color.web("#111111"),wRim=Color.web("#888899");
+                isoBox(gc,wx,wz,base,52,88,12,body,bodyL,bodyR,ox,oy);isoBox(gc,wx,wz-4,base+12,40,46,10,body.brighter(),bodyL.brighter(),bodyR.brighter(),ox,oy);
+                double[]W1=iso(wx-16,wz+14,base+12,ox,oy),W2=iso(wx+16,wz+14,base+12,ox,oy),W3=iso(wx+18,wz+20,base+12,ox,oy),W4=iso(wx-18,wz+20,base+12,ox,oy);
+                gc.setFill(glass);gc.fillPolygon(new double[]{W1[0],W2[0],W3[0],W4[0]},new double[]{W1[1],W2[1],W3[1],W4[1]},4);
+                for(double[]wp:new double[][]{{-22,-34},{22,-34},{-22,34},{22,34}}){isoBox(gc,wx+wp[0],wz+wp[1],base-2,10,16,9,wheel,wheel,wheel,ox,oy);isoBox(gc,wx+wp[0],wz+wp[1],base+2,6,10,4,wRim,wRim.darker(),wRim.darker(),ox,oy);}}
+            case SUV->{Color body=Color.web("#2A1A0A"),bodyL=Color.web("#1A0F06"),bodyR=Color.web("#110A04"),glass=Color.web("#004466",0.8),wheel=Color.web("#111111"),wRim=Color.web("#778899");
+                isoBox(gc,wx,wz,base,62,96,18,body,bodyL,bodyR,ox,oy);isoBox(gc,wx,wz-2,base+18,58,60,4,Color.web("#333333"),Color.web("#222222"),Color.web("#1A1A1A"),ox,oy);
+                double[]W1=iso(wx-22,wz+24,base+14,ox,oy),W2=iso(wx+22,wz+24,base+14,ox,oy),W3=iso(wx+24,wz+30,base+14,ox,oy),W4=iso(wx-24,wz+30,base+14,ox,oy);
+                gc.setFill(glass);gc.fillPolygon(new double[]{W1[0],W2[0],W3[0],W4[0]},new double[]{W1[1],W2[1],W3[1],W4[1]},4);
+                for(double[]wp:new double[][]{{-26,-38},{26,-38},{-26,38},{26,38}}){isoBox(gc,wx+wp[0],wz+wp[1],base-3,14,20,12,wheel,wheel,wheel,ox,oy);isoBox(gc,wx+wp[0],wz+wp[1],base+2,8,12,5,wRim,wRim.darker(),wRim.darker(),ox,oy);}}
+        }
+    }
+    private void onClick(double mx,double my){
+        if(slots.isEmpty())return;
+        int total=slots.size(),COLS=Math.min(5,total),ROWS=(int)Math.ceil((double)total/COLS);
+        double sX=TW+GAP,sZ=TD+GAP,cX=(COLS-1)*sX/2.0,cZ=(ROWS-1)*sZ/2.0;
+        double[]topPt=iso(-cX,-cZ,TH,0,0),botPt=iso(cX,cZ,0,0,0);
+        double gridH=botPt[1]-topPt[1];
+        double ox=canvas.getWidth()/2,oy=canvas.getHeight()*0.5-gridH*0.3;
+        ParkingSlot best=null;double bestD=Double.MAX_VALUE;
+        for(int i=0;i<slots.size();i++){double[]sc=iso((i%COLS)*sX-cX,(i/COLS)*sZ-cZ,TH,ox,oy);double d=Math.hypot(mx-sc[0],my-sc[1]);if(d<bestD){bestD=d;best=slots.get(i);}}
+        if(best!=null&&bestD<100){
+            if(best.getStatus()==SlotStatus.AVAILABLE){
+                selected=best;
+                step1Status.setText("Selected: "+best.getSlotNumber()+" ["+best.getType()+"] - tap NEXT");
+                selectedSlotInfo.setText("Slot "+best.getSlotNumber()+" selected");
+                step1NextBar.setVisible(true);step1NextBar.setManaged(true);draw();
+            }else step1Status.setText("Slot is "+best.getStatus().name().toLowerCase()+" - choose GREEN");
+        }
+    }
+    @FXML public void handleStep1Next(){
+        if(selected==null)return;
+        slotNumLabel.setText(selected.getSlotNumber());
+        slotTypeLabel.setText(selected.getType()==VehicleType.BIKE?"2-Wheeler (Bike)":selected.getType()==VehicleType.CAR?"4-Wheeler (Car)":"4-Wheeler (SUV)");
+        nameField.clear();plateField.clear();step2Error.setText("");show(2);
+    }
+    @FXML public void handleStep2Back(){show(1);}
+    @FXML public void handleConfirmBooking(){
+        String name=nameField.getText().trim(),plate=plateField.getText().trim().toUpperCase();
+        if(name.isEmpty()){step2Error.setText("Please enter your name!");return;}
+        if(plate.isEmpty()){step2Error.setText("Please enter license plate!");return;}
+        if(!parkingService.lockSlot(selected.getId(),UID)){step2Error.setText("Slot just taken! Go back.");return;}
+        Vehicle v=vehicleDAO.save(new Vehicle(0,plate,name,selected.getType()));
+        parkingService.confirmBooking(selected.getId(),UID);
+        ParkingSession sess=sessionDAO.startSession(v.getId(),selected.getId(),UID);
+        if(sess==null){step2Error.setText("Error! Please try again.");return;}
+        String qrData=QRCodeService.buildTicketData(sess.getId(),plate,selected.getSlotNumber(),sess.getEntryTime().format(FMT));
+        qrView.setImage(QRCodeService.generateQR(qrData,200));
+        tktId.setText("TKT-"+String.format("%05d",sess.getId()));
+        tktName.setText(name);tktPlate.setText(plate);tktSlot.setText(selected.getSlotNumber());
+        tktType.setText(selected.getType()==VehicleType.BIKE?"Bike (2-Wheeler)":selected.getType()==VehicleType.CAR?"Car (4-Wheeler)":"SUV (4-Wheeler)");
+        tktTime.setText(sess.getEntryTime().format(FMT));
+        show(3);startCd();
+    }
+    private void startCd(){
+        final int[]r={30};
+        cdTL=new Timeline(new KeyFrame(Duration.seconds(1),e->{r[0]--;if(cdLabel!=null)cdLabel.setText("Returning in "+r[0]+"s");if(r[0]<=0){cdTL.stop();handleDone();}}));
+        cdTL.setCycleCount(30);cdTL.play();
+    }
+    @FXML public void handleDone(){if(cdTL!=null)cdTL.stop();stop();load("welcome.fxml");}
+    @FXML public void handleBack(){stop();load("welcome.fxml");}
+    private void show(int s){step1.setVisible(s==1);step1.setManaged(s==1);step2.setVisible(s==2);step2.setManaged(s==2);step3.setVisible(s==3);step3.setManaged(s==3);}
+    private void startPulse(){
+        pulseTL=new Timeline(new KeyFrame(Duration.ZERO,e->{pulse=false;draw();}),new KeyFrame(Duration.seconds(1),e->{pulse=true;draw();}),new KeyFrame(Duration.seconds(2),e->{pulse=false;draw();}));
+        pulseTL.setCycleCount(Animation.INDEFINITE);pulseTL.play();
+    }
+    private void stop(){if(pulseTL!=null)pulseTL.stop();if(cdTL!=null)cdTL.stop();}
+    private void load(String f){ com.parksmart.Main.switchScene(f); }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\controller\KioskWelcomeController.java ==========
+package com.parksmart.controller;
+
+import com.parksmart.model.User;
+import com.parksmart.service.AuthService;
+import com.parksmart.service.ParkingService;
+import javafx.animation.*;
+import javafx.application.Platform;
+import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.fxml.Initializable;
+import javafx.geometry.Insets;
+import javafx.scene.Scene;
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.stage.Stage;
+import javafx.util.Duration;
+import java.net.URL;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Optional;
+import java.util.ResourceBundle;
+
+public class KioskWelcomeController implements Initializable {
+
+    @FXML private Canvas    bgCanvas;
+    @FXML private StackPane rootPane;
+    @FXML private Label     clockLabel;
+    @FXML private Label     slotsLabel;
+
+    private final AuthService    authService    = AuthService.getInstance();
+    private final ParkingService parkingService = ParkingService.getInstance();
+    private Timeline gridAnim;
+    private double   offset    = 0;
+    private int      tapCount  = 0;
+    private long     lastTap   = 0;
+
+    @Override
+    public void initialize(URL url, ResourceBundle rb) {
+        Platform.runLater(() -> {
+            bgCanvas.widthProperty().bind(rootPane.widthProperty());
+            bgCanvas.heightProperty().bind(rootPane.heightProperty());
+            startBg();
+            startClock();
+        });
+    }
+
+    private void startBg() {
+        gridAnim = new Timeline(new KeyFrame(Duration.millis(30), e -> drawBg()));
+        gridAnim.setCycleCount(Animation.INDEFINITE);
+        gridAnim.play();
+    }
+
+    private void drawBg() {
+        double W = bgCanvas.getWidth(), H = bgCanvas.getHeight();
+        if (W <= 0 || H <= 0) return;
+        GraphicsContext gc = bgCanvas.getGraphicsContext2D();
+        gc.clearRect(0, 0, W, H);
+        gc.setFill(Color.web("#05080F")); gc.fillRect(0, 0, W, H);
+        offset = (offset + 0.25) % 80;
+        gc.setStroke(Color.web("#0A1830", 0.4)); gc.setLineWidth(0.5);
+        for (double x = -80+offset; x < W+80; x += 80) gc.strokeLine(x, 0, x, H);
+        for (double y = -80+offset; y < H+80; y += 80) gc.strokeLine(0, y, W, y);
+        long t = System.currentTimeMillis();
+        gc.setFill(Color.web("#00C2FF", 0.35));
+        for (int i = 0; i < 8; i++) {
+            double px = ((t/10.0 + i*160) % (W+120)) - 60;
+            double py = ((i % 4) + 1) * H / 5.0;
+            gc.fillOval(px-3, py-3, 6, 6);
+        }
+        gc.setFill(Color.web("#00FF88", 0.25));
+        for (int i = 0; i < 5; i++) {
+            double px = ((i%4)+1) * W / 5.0;
+            double py = ((t/13.0 + i*200) % (H+120)) - 60;
+            gc.fillOval(px-2, py-2, 4, 4);
+        }
+    }
+
+    private void startClock() {
+        Timeline clock = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
+            if (clockLabel != null)
+                clockLabel.setText(LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+            if (slotsLabel != null)
+                slotsLabel.setText(parkingService.getAvailableCount() + " slots available");
+        }));
+        clock.setCycleCount(Animation.INDEFINITE);
+        clock.play();
+        clockLabel.setText(LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+        slotsLabel.setText(parkingService.getAvailableCount() + " slots available");
+    }
+
+    @FXML public void handlePark() { stopAndLoad("kiosk_park.fxml"); }
+    @FXML public void handleExit() { stopAndLoad("kiosk_exit.fxml"); }
+
+    @FXML
+    public void handleLogoClick() {
+        long now = System.currentTimeMillis();
+        if (now - lastTap > 3000) tapCount = 0;
+        lastTap = now; tapCount++;
+        if (tapCount >= 3) {
+            tapCount = 0;
+            showAdminLogin();
+        }
+    }
+
+    private void showAdminLogin() {
+        Dialog<String[]> dlg = new Dialog<>();
+        dlg.setTitle("Admin Access");
+        dlg.setHeaderText("Enter Admin Credentials");
+        ButtonType loginBtn = new ButtonType("Login", ButtonBar.ButtonData.OK_DONE);
+        dlg.getDialogPane().getButtonTypes().addAll(loginBtn, ButtonType.CANCEL);
+        GridPane grid = new GridPane();
+        grid.setHgap(10); grid.setVgap(12); grid.setPadding(new Insets(20));
+        TextField userF = new TextField("admin"); userF.setPromptText("Username");
+        PasswordField passF = new PasswordField(); passF.setPromptText("Password");
+        grid.add(new Label("Username:"), 0, 0); grid.add(userF, 1, 0);
+        grid.add(new Label("Password:"), 0, 1); grid.add(passF, 1, 1);
+        dlg.getDialogPane().setContent(grid);
+        dlg.setResultConverter(b -> b == loginBtn ? new String[]{userF.getText(), passF.getText()} : null);
+        Optional<String[]> res = dlg.showAndWait();
+        res.ifPresent(creds -> {
+            User user = authService.login(creds[0], creds[1]);
+            if (user != null) stopAndLoad("dashboard.fxml");
+            else new Alert(Alert.AlertType.ERROR, "Invalid credentials!", ButtonType.OK).showAndWait();
+        });
+    }
+
+    private void stopAndLoad(String fxml) {
+        if (gridAnim != null) gridAnim.stop();
+        com.parksmart.Main.switchScene(fxml);
+    }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\controller\ParkingGrid3DController.java ==========
+package com.parksmart.controller;
+
+import com.parksmart.model.ParkingSlot;
+import com.parksmart.model.enums.SlotStatus;
+import com.parksmart.model.enums.VehicleType;
+import com.parksmart.service.AuthService;
+import com.parksmart.service.ParkingService;
+import javafx.animation.*;
+import javafx.application.Platform;
+import javafx.fxml.FXML;
+import javafx.fxml.Initializable;
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.*;
+import javafx.scene.layout.StackPane;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.util.Duration;
+import java.net.URL;
+import java.util.*;
+import java.util.stream.Collectors;
+
+public class ParkingGrid3DController implements Initializable {
+
+    @FXML private StackPane container;
+    @FXML private Label statusLabel;
+    @FXML private Label availableLabel;
+    @FXML private Label occupiedLabel;
+    @FXML private Label lockingLabel;
+    @FXML private Label filterLabel;
+    @FXML private ComboBox<String> floorSelector;
+    @FXML private Button btnAll;
+    @FXML private Button btnTwo;
+    @FXML private Button btnFour;
+
+    private final ParkingService parkingService = ParkingService.getInstance();
+    private final AuthService    authService    = AuthService.getInstance();
+
+    private Canvas   canvas;
+    private int      currentFloor  = 1;
+    private String   currentFilter = "ALL";
+    private boolean  pulseState    = false;
+    private Timeline pulseTimeline;
+    private List<ParkingSlot> allSlots      = new ArrayList<>();
+    private List<ParkingSlot> filteredSlots = new ArrayList<>();
+
+    private static final double TW  = 90;
+    private static final double TD  = 110;
+    private static final double TH  = 16;
+    private static final double GAP = 18;
+
+    @Override
+    public void initialize(URL url, ResourceBundle rb) {
+        floorSelector.getItems().addAll("Floor 1", "Floor 2");
+        floorSelector.getSelectionModel().selectFirst();
+        floorSelector.setOnAction(e -> {
+            currentFloor = floorSelector.getSelectionModel().getSelectedIndex() + 1;
+            refreshDraw();
+        });
+        canvas = new Canvas();
+        canvas.widthProperty().bind(container.widthProperty());
+        canvas.heightProperty().bind(container.heightProperty());
+        canvas.widthProperty().addListener((o, ov, nv)  -> draw());
+        canvas.heightProperty().addListener((o, ov, nv) -> draw());
+        canvas.setOnMouseClicked(e -> handleCanvasClick(e.getX(), e.getY()));
+        container.getChildren().add(canvas);
+        startPulse();
+        Platform.runLater(this::refreshDraw);
+    }
+
+    @FXML public void filterAll() {
+        currentFilter = "ALL";
+        setActiveButton(btnAll);
+        if (filterLabel != null) filterLabel.setText("SHOWING: ALL SLOTS");
+        refreshDraw();
+    }
+    @FXML public void filterTwoWheeler() {
+        currentFilter = "TWO";
+        setActiveButton(btnTwo);
+        if (filterLabel != null) filterLabel.setText("SHOWING: 2-WHEELER (BIKE)");
+        refreshDraw();
+    }
+    @FXML public void filterFourWheeler() {
+        currentFilter = "FOUR";
+        setActiveButton(btnFour);
+        if (filterLabel != null) filterLabel.setText("SHOWING: 4-WHEELER (CAR + SUV)");
+        refreshDraw();
+    }
+
+    private void setActiveButton(Button active) {
+        String off = "-fx-background-color:#0D1525;-fx-background-radius:4;-fx-border-radius:4;-fx-font-family:monospace;-fx-font-size:11px;-fx-cursor:hand;-fx-padding:5 12 5 12;-fx-border-width:1;";
+        if (btnAll  != null) btnAll.setStyle( off+"-fx-text-fill:#00C2FF;-fx-border-color:#00C2FF;");
+        if (btnTwo  != null) btnTwo.setStyle( off+"-fx-text-fill:#00FF88;-fx-border-color:#00FF88;");
+        if (btnFour != null) btnFour.setStyle(off+"-fx-text-fill:#00C2FF;-fx-border-color:#00C2FF;");
+        String on = "-fx-font-family:monospace;-fx-font-size:11px;-fx-font-weight:bold;-fx-cursor:hand;-fx-background-radius:4;-fx-padding:5 12 5 12;-fx-text-fill:#0A0F1A;";
+        if (active==btnAll  && btnAll  !=null) btnAll.setStyle( on+"-fx-background-color:#00C2FF;");
+        if (active==btnTwo  && btnTwo  !=null) btnTwo.setStyle( on+"-fx-background-color:#00FF88;");
+        if (active==btnFour && btnFour !=null) btnFour.setStyle(on+"-fx-background-color:#00C2FF;");
+    }
+
+    private List<ParkingSlot> applyFilter(List<ParkingSlot> slots) {
+        return switch (currentFilter) {
+            case "TWO"  -> slots.stream().filter(s -> s.getType()==VehicleType.BIKE).collect(Collectors.toList());
+            case "FOUR" -> slots.stream().filter(s -> s.getType()!=VehicleType.BIKE).collect(Collectors.toList());
+            default     -> new ArrayList<>(slots);
+        };
+    }
+
+    private void refreshDraw() {
+        allSlots      = parkingService.getSlotsByFloor(currentFloor);
+        filteredSlots = applyFilter(allSlots);
+        updateStats(filteredSlots);
+        draw();
+    }
+
+    private double[] iso(double wx, double wz, double wy, double ox, double oy) {
+        return new double[]{ ox+(wx-wz)*0.52, oy+(wx+wz)*0.27-wy*0.72 };
+    }
+
+    private void draw() {
+        double W = canvas.getWidth(), H = canvas.getHeight();
+        if (W<=0||H<=0) return;
+        GraphicsContext gc = canvas.getGraphicsContext2D();
+        gc.clearRect(0,0,W,H);
+        gc.setFill(Color.web("#05080F")); gc.fillRect(0,0,W,H);
+        if (filteredSlots.isEmpty()) {
+            gc.setFill(Color.web("#00C2FF",0.5)); gc.setFont(Font.font("monospace",16));
+            gc.fillText("NO SLOTS FOR SELECTED TYPE", W/2-160, H/2);
+            drawScanlines(gc,W,H); drawHUD(gc,W,H); return;
+        }
+        int total=filteredSlots.size(), COLS=Math.min(5,total), ROWS=(int)Math.ceil((double)total/COLS);
+        double stepX=TW+GAP, stepZ=TD+GAP;
+        double cX=(COLS-1)*stepX/2.0, cZ=(ROWS-1)*stepZ/2.0;
+        double offX=W*0.50, offY=H*0.50+(ROWS*18);
+        drawFloorBase(gc,COLS,ROWS,stepX,stepZ,cX,cZ,offX,offY);
+        for (int row=ROWS-1;row>=0;row--)
+            for (int col=0;col<COLS;col++) {
+                int idx=row*COLS+col;
+                if (idx<filteredSlots.size())
+                    drawSlot(gc,filteredSlots.get(idx),col*stepX-cX,row*stepZ-cZ,offX,offY);
+            }
+        drawScanlines(gc,W,H); drawHUD(gc,W,H);
+    }
+
+    private void drawFloorBase(GraphicsContext gc,int cols,int rows,double stepX,double stepZ,double cX,double cZ,double ox,double oy) {
+        gc.setStroke(Color.web("#0D2040",0.6)); gc.setLineWidth(0.8);
+        for (int i=0;i<=cols;i++) {
+            double wx=i*stepX-cX-stepX/2;
+            double[] p1=iso(wx,-stepZ/2-cZ,0,ox,oy), p2=iso(wx,rows*stepZ-stepZ/2-cZ,0,ox,oy);
+            gc.strokeLine(p1[0],p1[1],p2[0],p2[1]);
+        }
+        for (int i=0;i<=rows;i++) {
+            double wz=i*stepZ-cZ-stepZ/2;
+            double[] p1=iso(-stepX/2-cX,wz,0,ox,oy), p2=iso(cols*stepX-stepX/2-cX,wz,0,ox,oy);
+            gc.strokeLine(p1[0],p1[1],p2[0],p2[1]);
+        }
+    }
+
+    private void drawSlot(GraphicsContext gc,ParkingSlot slot,double wx,double wz,double ox,double oy) {
+        double hw=TW/2, hd=TD/2;
+        Color topC,leftC,rightC,neonC;
+        switch (slot.getStatus()) {
+            case OCCUPIED -> {topC=Color.web("#3D0010");leftC=Color.web("#220008");rightC=Color.web("#150005");neonC=Color.web("#FF2244");}
+            case LOCKING  -> {topC=pulseState?Color.web("#4A3200"):Color.web("#2A1C00");leftC=Color.web("#1A1000");rightC=Color.web("#0F0900");neonC=Color.web("#FFB800");}
+            default       -> {topC=Color.web("#002B18");leftC=Color.web("#001610");rightC=Color.web("#000D09");neonC=Color.web("#00FF88");}
+        }
+        double[] BFL=iso(wx-hw,wz+hd,0,ox,oy),BFR=iso(wx+hw,wz+hd,0,ox,oy),BBR=iso(wx+hw,wz-hd,0,ox,oy);
+        double[] TFL=iso(wx-hw,wz+hd,TH,ox,oy),TFR=iso(wx+hw,wz+hd,TH,ox,oy);
+        double[] TBL=iso(wx-hw,wz-hd,TH,ox,oy),TBR=iso(wx+hw,wz-hd,TH,ox,oy);
+        gc.setFill(leftC);  gc.fillPolygon(new double[]{TFL[0],BFL[0],BFR[0],TFR[0]},new double[]{TFL[1],BFL[1],BFR[1],TFR[1]},4);
+        gc.setFill(rightC); gc.fillPolygon(new double[]{TFR[0],BFR[0],BBR[0],TBR[0]},new double[]{TFR[1],BFR[1],BBR[1],TBR[1]},4);
+        gc.setFill(topC);   gc.fillPolygon(new double[]{TFL[0],TFR[0],TBR[0],TBL[0]},new double[]{TFL[1],TFR[1],TBR[1],TBL[1]},4);
+        double na=(slot.getStatus()==SlotStatus.LOCKING&&!pulseState)?0.4:1.0;
+        gc.setStroke(neonC); gc.setLineWidth(1.6); gc.setGlobalAlpha(na);
+        gc.strokePolygon(new double[]{TFL[0],TFR[0],TBR[0],TBL[0]},new double[]{TFL[1],TFR[1],TBR[1],TBL[1]},4);
+        gc.setLineWidth(0.7); gc.setGlobalAlpha(na*0.5);
+        gc.strokeLine(TFL[0],TFL[1],BFL[0],BFL[1]); gc.strokeLine(TFR[0],TFR[1],BFR[0],BFR[1]);
+        gc.setGlobalAlpha(1.0);
+        if (slot.getStatus()!=SlotStatus.AVAILABLE) {
+            switch (slot.getType()) {
+                case BIKE -> drawBike(gc,wx,wz,ox,oy);
+                case CAR  -> drawCar(gc,wx,wz,ox,oy);
+                case SUV  -> drawSUV(gc,wx,wz,ox,oy);
+            }
+        }
+        double[] lp=iso(wx,wz,TH+4,ox,oy);
+        gc.setFill(neonC); gc.setFont(Font.font("monospace",8.5)); gc.setGlobalAlpha(0.9);
+        gc.fillText(slot.getSlotNumber(),lp[0]-14,lp[1]+3);
+        gc.setFill(Color.web("#4488AA")); gc.setFont(Font.font("monospace",7.5));
+        gc.fillText(slot.getType()==VehicleType.BIKE?"2W":slot.getType()==VehicleType.CAR?"CAR":"SUV",lp[0]+10,lp[1]+3);
+        gc.setGlobalAlpha(1.0);
+    }
+
+    private void isoBox(GraphicsContext gc,double wx,double wz,double base,double bw,double bd,double bh,Color top,Color left,Color right,double ox,double oy) {
+        double hw=bw/2,hd=bd/2;
+        double[] BFL=iso(wx-hw,wz+hd,base,ox,oy),BFR=iso(wx+hw,wz+hd,base,ox,oy),BBR=iso(wx+hw,wz-hd,base,ox,oy);
+        double[] TFL=iso(wx-hw,wz+hd,base+bh,ox,oy),TFR=iso(wx+hw,wz+hd,base+bh,ox,oy);
+        double[] TBL=iso(wx-hw,wz-hd,base+bh,ox,oy),TBR=iso(wx+hw,wz-hd,base+bh,ox,oy);
+        gc.setFill(left);  gc.fillPolygon(new double[]{TFL[0],BFL[0],BFR[0],TFR[0]},new double[]{TFL[1],BFL[1],BFR[1],TFR[1]},4);
+        gc.setFill(right); gc.fillPolygon(new double[]{TFR[0],BFR[0],BBR[0],TBR[0]},new double[]{TFR[1],BFR[1],BBR[1],TBR[1]},4);
+        gc.setFill(top);   gc.fillPolygon(new double[]{TFL[0],TFR[0],TBR[0],TBL[0]},new double[]{TFL[1],TFR[1],TBR[1],TBL[1]},4);
+    }
+
+    private void drawCar(GraphicsContext gc,double wx,double wz,double ox,double oy) {
+        double base=TH;
+        Color body=Color.web("#1A3A6A"),bodyL=Color.web("#0F2244"),bodyR=Color.web("#0A1830");
+        Color glass=Color.web("#00AADD",0.75),wheel=Color.web("#111111"),wRim=Color.web("#888899");
+        // Body
+        isoBox(gc,wx,wz,base,52,88,12,body,bodyL,bodyR,ox,oy);
+        // Cabin
+        isoBox(gc,wx,wz-4,base+12,40,46,10,body.brighter(),bodyL.brighter(),bodyR.brighter(),ox,oy);
+        // Front windshield
+        double[] W1=iso(wx-16,wz+14,base+12,ox,oy),W2=iso(wx+16,wz+14,base+12,ox,oy);
+        double[] W3=iso(wx+18,wz+20,base+12,ox,oy),W4=iso(wx-18,wz+20,base+12,ox,oy);
+        gc.setFill(glass); gc.fillPolygon(new double[]{W1[0],W2[0],W3[0],W4[0]},new double[]{W1[1],W2[1],W3[1],W4[1]},4);
+        // Rear windshield
+        double[] R1=iso(wx-14,wz-18,base+12,ox,oy),R2=iso(wx+14,wz-18,base+12,ox,oy);
+        double[] R3=iso(wx+12,wz-22,base+12,ox,oy),R4=iso(wx-12,wz-22,base+12,ox,oy);
+        gc.setFill(glass.deriveColor(0,1,0.7,0.8));
+        gc.fillPolygon(new double[]{R1[0],R2[0],R3[0],R4[0]},new double[]{R1[1],R2[1],R3[1],R4[1]},4);
+        // 4 wheels
+        for (double[] wp:new double[][]{{-22,-34},{22,-34},{-22,34},{22,34}}) {
+            isoBox(gc,wx+wp[0],wz+wp[1],base-2,10,16,9,wheel,wheel,wheel,ox,oy);
+            isoBox(gc,wx+wp[0],wz+wp[1],base+2, 6,10,4,wRim,wRim.darker(),wRim.darker(),ox,oy);
+        }
+        // Headlights
+        isoBox(gc,wx-18,wz+44,base+4,8,4,5,Color.web("#FFFFAA",0.95),Color.web("#DDDD88",0.8),Color.web("#BBBB66",0.6),ox,oy);
+        isoBox(gc,wx+18,wz+44,base+4,8,4,5,Color.web("#FFFFAA",0.95),Color.web("#DDDD88",0.8),Color.web("#BBBB66",0.6),ox,oy);
+        // Tail lights
+        isoBox(gc,wx-18,wz-44,base+4,8,4,5,Color.web("#FF2222",0.9),Color.web("#CC1111",0.7),Color.web("#AA0000",0.5),ox,oy);
+        isoBox(gc,wx+18,wz-44,base+4,8,4,5,Color.web("#FF2222",0.9),Color.web("#CC1111",0.7),Color.web("#AA0000",0.5),ox,oy);
+        // Number plate
+        isoBox(gc,wx,wz+45,base+2,22,3,4,Color.web("#FFFFFF",0.9),Color.web("#EEEEEE",0.7),Color.web("#CCCCCC",0.5),ox,oy);
+    }
+
+    private void drawSUV(GraphicsContext gc,double wx,double wz,double ox,double oy) {
+        double base=TH;
+        Color body=Color.web("#2A1A0A"),bodyL=Color.web("#1A0F06"),bodyR=Color.web("#110A04");
+        Color glass=Color.web("#004466",0.8),wheel=Color.web("#111111"),wRim=Color.web("#778899");
+        // Body
+        isoBox(gc,wx,wz,base,62,96,18,body,bodyL,bodyR,ox,oy);
+        // Roof rack
+        isoBox(gc,wx,wz-2,base+18,58,60,4,Color.web("#333333"),Color.web("#222222"),Color.web("#1A1A1A"),ox,oy);
+        // Front windshield
+        double[] W1=iso(wx-22,wz+24,base+14,ox,oy),W2=iso(wx+22,wz+24,base+14,ox,oy);
+        double[] W3=iso(wx+24,wz+30,base+14,ox,oy),W4=iso(wx-24,wz+30,base+14,ox,oy);
+        gc.setFill(glass); gc.fillPolygon(new double[]{W1[0],W2[0],W3[0],W4[0]},new double[]{W1[1],W2[1],W3[1],W4[1]},4);
+        // Side window
+        double[] S1=iso(wx-30,wz+10,base+14,ox,oy),S2=iso(wx-30,wz+22,base+14,ox,oy);
+        double[] S3=iso(wx-30,wz+20,base+18,ox,oy),S4=iso(wx-30,wz+12,base+18,ox,oy);
+        gc.setFill(glass); gc.fillPolygon(new double[]{S1[0],S2[0],S3[0],S4[0]},new double[]{S1[1],S2[1],S3[1],S4[1]},4);
+        // 4 big wheels
+        for (double[] wp:new double[][]{{-26,-38},{26,-38},{-26,38},{26,38}}) {
+            isoBox(gc,wx+wp[0],wz+wp[1],base-3,14,20,12,wheel,wheel,wheel,ox,oy);
+            isoBox(gc,wx+wp[0],wz+wp[1],base+2, 8,12, 5,wRim,wRim.darker(),wRim.darker(),ox,oy);
+        }
+        // Headlights
+        isoBox(gc,wx-22,wz+48,base+8,12,5,6,Color.web("#FFFFFF",0.9),Color.web("#DDDDDD",0.7),Color.web("#BBBBBB",0.5),ox,oy);
+        isoBox(gc,wx+22,wz+48,base+8,12,5,6,Color.web("#FFFFFF",0.9),Color.web("#DDDDDD",0.7),Color.web("#BBBBBB",0.5),ox,oy);
+        // Tail lights
+        isoBox(gc,wx-22,wz-48,base+8,12,5,6,Color.web("#FF3300",0.9),Color.web("#CC2200",0.7),Color.web("#AA1100",0.5),ox,oy);
+        isoBox(gc,wx+22,wz-48,base+8,12,5,6,Color.web("#FF3300",0.9),Color.web("#CC2200",0.7),Color.web("#AA1100",0.5),ox,oy);
+        // Bull bar
+        isoBox(gc,wx,wz+50,base+2,55,4,6,Color.web("#444444"),Color.web("#333333"),Color.web("#222222"),ox,oy);
+    }
+
+    private void drawBike(GraphicsContext gc,double wx,double wz,double ox,double oy) {
+        double base=TH;
+        Color body=Color.web("#CC3300"),bodyD=Color.web("#881100");
+        Color metal=Color.web("#888888"),metalD=Color.web("#555555");
+        Color wheel=Color.web("#111111"),wheelC=Color.web("#666666");
+        Color seat=Color.web("#1A1A1A");
+        // Front wheel
+        isoBox(gc,wx,wz+30,base,  8,18,14,wheel,wheel.brighter(),wheel.brighter(),ox,oy);
+        isoBox(gc,wx,wz+30,base+4,4,10, 6,wheelC,wheelC.darker(),wheelC.darker(),ox,oy);
+        // Rear wheel
+        isoBox(gc,wx,wz-30,base,  8,18,14,wheel,wheel.brighter(),wheel.brighter(),ox,oy);
+        isoBox(gc,wx,wz-30,base+4,4,10, 6,wheelC,wheelC.darker(),wheelC.darker(),ox,oy);
+        // Frame
+        isoBox(gc,wx,wz,base+6,6,44,6,metal,metalD,metalD,ox,oy);
+        // Engine block
+        isoBox(gc,wx,wz+2,base+2,14,22,12,body,bodyD,bodyD.darker(),ox,oy);
+        // Fuel tank
+        isoBox(gc,wx,wz-4,base+14,12,18,8,body.brighter(),body,bodyD,ox,oy);
+        // Seat
+        isoBox(gc,wx,wz-16,base+20,10,24,5,seat,seat.brighter(),seat.brighter(),ox,oy);
+        // Handlebar stem
+        isoBox(gc,wx,wz+20,base+20,4,4,10,metal,metalD,metalD,ox,oy);
+        // Handlebar crossbar
+        isoBox(gc,wx,wz+22,base+28,28,4,4,metal,metalD,metalD,ox,oy);
+        // Grips
+        isoBox(gc,wx-13,wz+22,base+28,5,4,6,Color.web("#222222"),Color.web("#111111"),Color.web("#111111"),ox,oy);
+        isoBox(gc,wx+13,wz+22,base+28,5,4,6,Color.web("#222222"),Color.web("#111111"),Color.web("#111111"),ox,oy);
+        // Headlight
+        isoBox(gc,wx,wz+34,base+14,8,4,6,Color.web("#FFFF99",0.95),Color.web("#DDDD77",0.8),Color.web("#BBBB55",0.6),ox,oy);
+        // Tail light
+        isoBox(gc,wx,wz-38,base+14,6,3,4,Color.web("#FF2200",0.9),Color.web("#CC1100",0.7),Color.web("#AA0000",0.5),ox,oy);
+        // Exhaust
+        isoBox(gc,wx+8,wz-10,base+2,3,28,3,metal,metalD,metalD,ox,oy);
+        // Mirrors
+        isoBox(gc,wx-16,wz+20,base+30,6,3,3,metal,metalD,metalD,ox,oy);
+        isoBox(gc,wx+16,wz+20,base+30,6,3,3,metal,metalD,metalD,ox,oy);
+    }
+
+    private void handleCanvasClick(double mx,double my) {
+        if (filteredSlots.isEmpty()) return;
+        int total=filteredSlots.size(),COLS=Math.min(5,total),ROWS=(int)Math.ceil((double)total/COLS);
+        double stepX=TW+GAP,stepZ=TD+GAP;
+        double cX=(COLS-1)*stepX/2.0,cZ=(ROWS-1)*stepZ/2.0;
+        double ox=canvas.getWidth()*0.50,oy=canvas.getHeight()*0.50+(ROWS*18);
+        ParkingSlot best=null; double bestD=Double.MAX_VALUE;
+        for (int i=0;i<filteredSlots.size();i++) {
+            double[] sc=iso((i%COLS)*stepX-cX,(i/COLS)*stepZ-cZ,TH,ox,oy);
+            double d=Math.hypot(mx-sc[0],my-sc[1]);
+            if (d<bestD){bestD=d;best=filteredSlots.get(i);}
+        }
+        if (best!=null&&bestD<75&&best.getStatus()==SlotStatus.AVAILABLE) handleSlotBook(best);
+    }
+
+    private void handleSlotBook(ParkingSlot slot) {
+        var user=authService.getCurrentUser(); if (user==null) return;
+        Alert dlg=new Alert(Alert.AlertType.CONFIRMATION);
+        dlg.setTitle("Book Slot");
+        dlg.setHeaderText(slot.getSlotNumber()+"  ["+slot.getType()+"]");
+        dlg.setContentText("Lock this slot for 5 minutes?");
+        dlg.showAndWait().ifPresent(r -> {
+            if (r==ButtonType.OK) {
+                boolean ok=parkingService.lockSlot(slot.getId(),user.getId());
+                if (statusLabel!=null) statusLabel.setText(ok
+                    ?">> "+slot.getSlotNumber()+" LOCKED - complete entry within 5 min."
+                    :">> SLOT ALREADY TAKEN - choose another.");
+                if (ok) refreshDraw();
+            }
+        });
+    }
+
+    private void startPulse() {
+        pulseTimeline=new Timeline(
+            new KeyFrame(Duration.ZERO,       e->{pulseState=false;draw();}),
+            new KeyFrame(Duration.seconds(1), e->{pulseState=true; draw();}),
+            new KeyFrame(Duration.seconds(2), e->{pulseState=false;draw();})
+        );
+        pulseTimeline.setCycleCount(Animation.INDEFINITE);
+        pulseTimeline.play();
+    }
+
+    private void drawScanlines(GraphicsContext gc,double W,double H) {
+        gc.setFill(Color.color(0,0,0,0.032));
+        for (int y=0;y<H;y+=3) gc.fillRect(0,y,W,1.5);
+    }
+
+    private void drawHUD(GraphicsContext gc,double W,double H) {
+        gc.setStroke(Color.web("#00C2FF",0.3)); gc.setLineWidth(1.2);
+        double m=18,s=28;
+        gc.strokeLine(m,m,m+s,m);       gc.strokeLine(m,m,m,m+s);
+        gc.strokeLine(W-m,m,W-m-s,m);   gc.strokeLine(W-m,m,W-m,m+s);
+        gc.strokeLine(m,H-m,m+s,H-m);   gc.strokeLine(m,H-m,m,H-m-s);
+        gc.strokeLine(W-m,H-m,W-m-s,H-m); gc.strokeLine(W-m,H-m,W-m,H-m-s);
+        gc.setFill(Color.web("#00C2FF",0.35)); gc.setFont(Font.font("monospace",10));
+        gc.fillText("FLOOR "+currentFloor+"  //  "+filteredSlots.size()+" SLOTS",m+6,H-m-6);
+    }
+
+    private void updateStats(List<ParkingSlot> slots) {
+        long a=slots.stream().filter(s->s.getStatus()==SlotStatus.AVAILABLE).count();
+        long o=slots.stream().filter(s->s.getStatus()==SlotStatus.OCCUPIED).count();
+        long l=slots.stream().filter(s->s.getStatus()==SlotStatus.LOCKING).count();
+        if (availableLabel!=null) availableLabel.setText(String.valueOf(a));
+        if (occupiedLabel !=null) occupiedLabel.setText(String.valueOf(o));
+        if (lockingLabel  !=null) lockingLabel.setText(String.valueOf(l));
+    }
+
+    @FXML public void handleRefresh() { refreshDraw(); }
+    @FXML public void resetCamera()   { refreshDraw(); }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\controller\VehicleEntryController.java ==========
+package com.parksmart.controller;
+
+import com.parksmart.dao.SessionDAO;
+import com.parksmart.dao.VehicleDAO;
+import com.parksmart.model.ParkingSession;
+import com.parksmart.model.ParkingSlot;
+import com.parksmart.model.Vehicle;
+import com.parksmart.model.enums.SlotStatus;
+import com.parksmart.model.enums.VehicleType;
+import com.parksmart.service.AuthService;
+import com.parksmart.service.ParkingService;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.fxml.FXML;
+import javafx.fxml.Initializable;
+import javafx.scene.control.*;
+import java.net.URL;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.ResourceBundle;
+import java.util.stream.Collectors;
+
+public class VehicleEntryController implements Initializable {
+
+    @FXML private TextField licensePlateField;
+    @FXML private TextField ownerNameField;
+    @FXML private ComboBox<String> vehicleTypeBox;
+    @FXML private ComboBox<String> slotBox;
+    @FXML private Label entryErrorLabel;
+    @FXML private TableView<ParkingSession> entriesTable;
+    @FXML private TableColumn<ParkingSession, String> colPlate;
+    @FXML private TableColumn<ParkingSession, String> colOwner;
+    @FXML private TableColumn<ParkingSession, String> colSlot;
+    @FXML private TableColumn<ParkingSession, String> colType;
+    @FXML private TableColumn<ParkingSession, String> colTime;
+
+    private final ParkingService parkingService = ParkingService.getInstance();
+    private final AuthService authService = AuthService.getInstance();
+    private final VehicleDAO vehicleDAO = new VehicleDAO();
+    private List<Vehicle> allVehicles;
+    private final SessionDAO sessionDAO = new SessionDAO();
+    private final DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
+
+    @Override
+    public void initialize(URL url, ResourceBundle rb) {
+        vehicleTypeBox.setItems(FXCollections.observableArrayList("BIKE", "CAR", "SUV"));
+        vehicleTypeBox.getSelectionModel().selectFirst();
+        allVehicles = vehicleDAO.findAll();
+        loadAvailableSlots();
+        setupTable();
+        refreshTable();
+    }
+
+    private void loadAvailableSlots() {
+        String selectedType = vehicleTypeBox.getValue();
+        List<String> available = parkingService.getAllSlots().stream()
+            .filter(s -> s.getStatus() == SlotStatus.AVAILABLE)
+            .filter(s -> {
+                if (selectedType == null) return true;
+                if (selectedType.equals("BIKE")) return s.getType().name().equals("BIKE");
+                return !s.getType().name().equals("BIKE"); // CAR or SUV for 4-wheeler
+            })
+            .map(s -> s.getId() + " - " + s.getSlotNumber() + " (" + s.getType() + ")")
+            .collect(Collectors.toList());
+        slotBox.setItems(FXCollections.observableArrayList(available));
+        if (!available.isEmpty()) slotBox.getSelectionModel().selectFirst();
+        else slotBox.setPromptText("No slots available for " + selectedType);
+    }
+
+    private void setupTable() {
+        colPlate.setCellValueFactory(c -> {
+            Vehicle v = allVehicles.stream().filter(x -> x.getId() == c.getValue().getVehicleId()).findFirst().orElse(null);
+            return new SimpleStringProperty(v != null ? v.getLicensePlate() : "?");
+        });
+        colOwner.setCellValueFactory(c -> {
+            Vehicle v = allVehicles.stream().filter(x -> x.getId() == c.getValue().getVehicleId()).findFirst().orElse(null);
+            return new SimpleStringProperty(v != null ? v.getOwnerName() : "?");
+        });
+        colSlot.setCellValueFactory(c -> {
+            ParkingSlot s = parkingService.getAllSlots().stream().filter(x -> x.getId() == c.getValue().getSlotId()).findFirst().orElse(null);
+            return new SimpleStringProperty(s != null ? s.getSlotNumber() : "?");
+        });
+        colType.setCellValueFactory(c -> {
+            Vehicle v = allVehicles.stream().filter(x -> x.getId() == c.getValue().getVehicleId()).findFirst().orElse(null);
+            return new SimpleStringProperty(v != null ? v.getVehicleType().name() : "?");
+        });
+        colTime.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getEntryTime().format(fmt)));
+        entriesTable.setStyle("-fx-background-color: #111621; -fx-text-fill: white;");
+    }
+
+    private void refreshTable() {
+        allVehicles = vehicleDAO.findAll();
+        ObservableList<ParkingSession> sessions = FXCollections.observableArrayList(sessionDAO.findAllActive());
+        entriesTable.setItems(sessions);
+    }
+
+    @FXML
+    public void handleEntry() {
+        String plate = licensePlateField.getText().trim().toUpperCase();
+        String owner = ownerNameField.getText().trim();
+        String typeStr = vehicleTypeBox.getValue();
+        String slotStr = slotBox.getValue();
+
+        if (plate.isEmpty() || owner.isEmpty() || typeStr == null || slotStr == null) {
+            entryErrorLabel.setText("Please fill all fields!");
+            return;
+        }
+
+        int slotId = Integer.parseInt(slotStr.split(" - ")[0]);
+        var user = authService.getCurrentUser();
+
+        boolean locked = parkingService.lockSlot(slotId, user.getId());
+        if (!locked) {
+            entryErrorLabel.setText("Slot already taken! Choose another.");
+            allVehicles = vehicleDAO.findAll();
+        loadAvailableSlots();
+            return;
+        }
+
+        Vehicle vehicle = new Vehicle(0, plate, owner, VehicleType.valueOf(typeStr));
+        vehicle = vehicleDAO.save(vehicle);
+
+        parkingService.confirmBooking(slotId, user.getId());
+        ParkingSession session = sessionDAO.startSession(vehicle.getId(), slotId, user.getId());
+
+        if (session != null) {
+            entryErrorLabel.setStyle("-fx-text-fill: #4ade80; -fx-font-size: 12px;");
+            entryErrorLabel.setText("Entry confirmed! Ticket: #" + session.getId());
+            licensePlateField.clear();
+            ownerNameField.clear();
+            allVehicles = vehicleDAO.findAll();
+        loadAvailableSlots();
+            refreshTable();
+        } else {
+            entryErrorLabel.setText("Error creating session!");
+        }
+    }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\controller\VehicleExitController.java ==========
+package com.parksmart.controller;
+
+import com.parksmart.dao.SessionDAO;
+import com.parksmart.dao.TransactionDAO;
+import com.parksmart.dao.VehicleDAO;
+import com.parksmart.model.ParkingSession;
+import com.parksmart.model.ParkingSlot;
+import com.parksmart.model.Transaction;
+import com.parksmart.model.Vehicle;
+import com.parksmart.service.BillingService;
+import com.parksmart.service.ParkingService;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.collections.FXCollections;
+import javafx.fxml.FXML;
+import javafx.fxml.Initializable;
+import javafx.scene.control.*;
+import javafx.scene.layout.VBox;
+import java.net.URL;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.ResourceBundle;
+
+public class VehicleExitController implements Initializable {
+
+    @FXML private TableView<ParkingSession> parkedTable;
+    @FXML private TableColumn<ParkingSession, String> colPlate;
+    @FXML private TableColumn<ParkingSession, String> colOwner;
+    @FXML private TableColumn<ParkingSession, String> colSlot;
+    @FXML private TableColumn<ParkingSession, String> colDuration;
+    @FXML private VBox billPane;
+    @FXML private Label billPlate, billOwner, billSlot, billEntry, billDuration, billTotal;
+    @FXML private TextField discountField;
+    @FXML private Label exitErrorLabel;
+    @FXML private TextArea receiptArea;
+
+    private final VehicleDAO vehicleDAO = new VehicleDAO();
+    private final SessionDAO sessionDAO = new SessionDAO();
+    private final TransactionDAO transactionDAO = new TransactionDAO();
+    private final BillingService billingService = BillingService.getInstance();
+    private final ParkingService parkingService = ParkingService.getInstance();
+    private final DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
+
+    private Vehicle currentVehicle;
+    private ParkingSession currentSession;
+    private ParkingSlot currentSlot;
+    private double currentAmount;
+    private List<Vehicle> allVehicles;
+
+    @Override
+    public void initialize(URL url, ResourceBundle rb) {
+        allVehicles = vehicleDAO.findAll();
+        setupTable();
+        loadParkedVehicles();
+        parkedTable.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) showBill(newVal);
+        });
+    }
+
+    private void setupTable() {
+        colPlate.setCellValueFactory(c -> {
+            Vehicle v = getVehicle(c.getValue().getVehicleId());
+            return new SimpleStringProperty(v != null ? v.getLicensePlate() : "?");
+        });
+        colOwner.setCellValueFactory(c -> {
+            Vehicle v = getVehicle(c.getValue().getVehicleId());
+            return new SimpleStringProperty(v != null ? v.getOwnerName() : "?");
+        });
+        colSlot.setCellValueFactory(c -> {
+            ParkingSlot s = getSlot(c.getValue().getSlotId());
+            return new SimpleStringProperty(s != null ? s.getSlotNumber() : "?");
+        });
+        colDuration.setCellValueFactory(c -> {
+            Duration d = Duration.between(c.getValue().getEntryTime(), LocalDateTime.now());
+            return new SimpleStringProperty(d.toHours() + "h " + d.toMinutesPart() + "m");
+        });
+    }
+
+    private void loadParkedVehicles() {
+        List<ParkingSession> active = sessionDAO.findAllActive();
+        parkedTable.setItems(FXCollections.observableArrayList(active));
+    }
+
+    private void showBill(ParkingSession session) {
+        currentSession = session;
+        currentVehicle = getVehicle(session.getVehicleId());
+        currentSlot = getSlot(session.getSlotId());
+        if (currentVehicle == null) return;
+        LocalDateTime now = LocalDateTime.now();
+        currentAmount = billingService.calculateFee(currentVehicle.getVehicleType(), session.getEntryTime(), now);
+        Duration duration = Duration.between(session.getEntryTime(), now);
+        billPlate.setText(currentVehicle.getLicensePlate());
+        billOwner.setText(currentVehicle.getOwnerName());
+        billSlot.setText(currentSlot != null ? currentSlot.getSlotNumber() : "?");
+        billEntry.setText(session.getEntryTime().format(fmt));
+        billDuration.setText(duration.toHours() + "h " + duration.toMinutesPart() + "m");
+        billTotal.setText("Rs. " + currentAmount);
+        discountField.clear();
+        billPane.setVisible(true);
+        billPane.setManaged(true);
+    }
+
+    @FXML
+    public void handleExit() {
+        if (currentSession == null) return;
+        double discount = 0;
+        try { discount = Double.parseDouble(discountField.getText().trim()); } catch (Exception ignored) {}
+        LocalDateTime exitTime = LocalDateTime.now();
+        double finalAmount = billingService.applyDiscount(currentAmount, discount);
+        sessionDAO.endSession(currentSession.getId(), exitTime);
+        parkingService.releaseSlot(currentSession.getSlotId());
+        Transaction t = new Transaction();
+        t.setSessionId(currentSession.getId());
+        t.setAmount(currentAmount);
+        t.setDiscount(discount);
+        t.setPaymentTime(exitTime);
+        String receipt = billingService.generateReceipt(
+            currentVehicle.getLicensePlate(),
+            currentSlot != null ? currentSlot.getSlotNumber() : "?",
+            currentSession.getEntryTime(), exitTime, currentAmount, discount);
+        t.setReceipt(receipt);
+        transactionDAO.save(t);
+        receiptArea.setText(receipt);
+        exitErrorLabel.setText("Exit confirmed! Amount collected: Rs. " + finalAmount);
+        billPane.setVisible(false);
+        billPane.setManaged(false);
+        currentSession = null;
+        currentVehicle = null;
+        loadParkedVehicles();
+    }
+
+    private Vehicle getVehicle(int id) {
+        return allVehicles.stream().filter(v -> v.getId() == id).findFirst().orElse(null);
+    }
+
+    private ParkingSlot getSlot(int id) {
+        return parkingService.getAllSlots().stream().filter(s -> s.getId() == id).findFirst().orElse(null);
+    }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\dao\DatabaseManager.java ==========
+package com.parksmart.dao;
+
+import java.sql.*;
+import org.mindrot.jbcrypt.BCrypt;
+
+public class DatabaseManager {
+    private static DatabaseManager instance;
+    private static final String DB_URL = "jdbc:sqlite:parksmart.db";
+
+    private DatabaseManager() {
+        initializeDatabase();
+    }
+
+    public static DatabaseManager getInstance() {
+        if (instance == null) instance = new DatabaseManager();
+        return instance;
+    }
+
+    public Connection getConnection() throws SQLException {
+        return DriverManager.getConnection(DB_URL);
+    }
+
+    private void initializeDatabase() {
+        try (Connection conn = getConnection(); Statement stmt = conn.createStatement()) {
+            stmt.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL, active INTEGER DEFAULT 1)");
+            stmt.execute("CREATE TABLE IF NOT EXISTS parking_slots (id INTEGER PRIMARY KEY AUTOINCREMENT, slot_number TEXT UNIQUE NOT NULL, floor INTEGER NOT NULL, type TEXT NOT NULL, status TEXT DEFAULT 'AVAILABLE')");
+            stmt.execute("CREATE TABLE IF NOT EXISTS vehicles (id INTEGER PRIMARY KEY AUTOINCREMENT, license_plate TEXT UNIQUE NOT NULL, owner_name TEXT NOT NULL, vehicle_type TEXT NOT NULL)");
+            stmt.execute("CREATE TABLE IF NOT EXISTS parking_sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, vehicle_id INTEGER, slot_id INTEGER, user_id INTEGER, entry_time TEXT, exit_time TEXT, active INTEGER DEFAULT 1)");
+            stmt.execute("CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id INTEGER, amount REAL, discount REAL DEFAULT 0, payment_time TEXT, receipt TEXT)");
+            stmt.execute("CREATE TABLE IF NOT EXISTS audit_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, action TEXT, details TEXT, timestamp TEXT)");
+            seedData(conn);
+            System.out.println("Database initialized successfully!");
+        } catch (SQLException e) {
+            System.err.println("Database error: " + e.getMessage());
+        }
+    }
+
+    private void seedData(Connection conn) throws SQLException {
+        Statement stmt = conn.createStatement();
+        ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM users");
+        if (rs.getInt(1) > 0) return;
+        String hash = BCrypt.hashpw("admin123", BCrypt.gensalt());
+        PreparedStatement ps = conn.prepareStatement("INSERT INTO users (name, username, password_hash, role) VALUES (?, ?, ?, ?)");
+        ps.setString(1, "Admin User"); ps.setString(2, "admin"); ps.setString(3, hash); ps.setString(4, "ADMIN");
+        ps.executeUpdate();
+        for (int floor = 1; floor <= 2; floor++) {
+            for (int i = 1; i <= 15; i++) {
+                String slotNum = "F" + floor + "-" + String.format("%02d", i);
+                String type = (i <= 5) ? "BIKE" : (i <= 12) ? "CAR" : "SUV";
+                stmt.execute("INSERT INTO parking_slots (slot_number, floor, type) VALUES ('" + slotNum + "', " + floor + ", '" + type + "')");
+            }
+        }
+        System.out.println("Seed data inserted!");
+    }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\dao\SessionDAO.java ==========
+package com.parksmart.dao;
+
+import com.parksmart.model.ParkingSession;
+import java.sql.*;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+public class SessionDAO {
+    private final DatabaseManager db = DatabaseManager.getInstance();
+
+    public ParkingSession startSession(int vehicleId, int slotId, int userId) {
+        String sql = "INSERT INTO parking_sessions (vehicle_id, slot_id, user_id, entry_time, active) VALUES (?, ?, ?, ?, 1)";
+        try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            ps.setInt(1, vehicleId);
+            ps.setInt(2, slotId);
+            ps.setInt(3, userId);
+            ps.setString(4, LocalDateTime.now().toString());
+            ps.executeUpdate();
+            ResultSet keys = ps.getGeneratedKeys();
+            if (keys.next()) {
+                ParkingSession session = new ParkingSession();
+                session.setId(keys.getInt(1));
+                session.setVehicleId(vehicleId);
+                session.setSlotId(slotId);
+                session.setUserId(userId);
+                session.setEntryTime(LocalDateTime.now());
+                session.setActive(true);
+                return session;
+            }
+        } catch (SQLException e) { System.err.println(e.getMessage()); }
+        return null;
+    }
+
+    public ParkingSession findActiveBySlot(int slotId) {
+        String sql = "SELECT * FROM parking_sessions WHERE slot_id = ? AND active = 1";
+        try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, slotId);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return mapRow(rs);
+        } catch (SQLException e) { System.err.println(e.getMessage()); }
+        return null;
+    }
+
+    public ParkingSession findActiveByVehicle(int vehicleId) {
+        String sql = "SELECT * FROM parking_sessions WHERE vehicle_id = ? AND active = 1";
+        try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, vehicleId);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return mapRow(rs);
+        } catch (SQLException e) { System.err.println(e.getMessage()); }
+        return null;
+    }
+
+    public boolean endSession(int sessionId, LocalDateTime exitTime) {
+        String sql = "UPDATE parking_sessions SET exit_time = ?, active = 0 WHERE id = ?";
+        try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, exitTime.toString());
+            ps.setInt(2, sessionId);
+            ps.executeUpdate();
+            return true;
+        } catch (SQLException e) { System.err.println(e.getMessage()); }
+        return false;
+    }
+
+    public List<ParkingSession> findAllActive() {
+        List<ParkingSession> list = new ArrayList<>();
+        String sql = "SELECT * FROM parking_sessions WHERE active = 1";
+        try (Connection conn = db.getConnection(); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) list.add(mapRow(rs));
+        } catch (SQLException e) { System.err.println(e.getMessage()); }
+        return list;
+    }
+
+    private ParkingSession mapRow(ResultSet rs) throws SQLException {
+        ParkingSession s = new ParkingSession();
+        s.setId(rs.getInt("id"));
+        s.setVehicleId(rs.getInt("vehicle_id"));
+        s.setSlotId(rs.getInt("slot_id"));
+        s.setUserId(rs.getInt("user_id"));
+        s.setEntryTime(LocalDateTime.parse(rs.getString("entry_time")));
+        String exit = rs.getString("exit_time");
+        if (exit != null) s.setExitTime(LocalDateTime.parse(exit));
+        s.setActive(rs.getInt("active") == 1);
+        return s;
+    }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\dao\SlotDAO.java ==========
+package com.parksmart.dao;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+
+import com.parksmart.model.ParkingSlot;
+import com.parksmart.model.enums.SlotStatus;
+import com.parksmart.model.enums.VehicleType;
+
+public class SlotDAO {
+    private final DatabaseManager db = DatabaseManager.getInstance();
+
+    public List<ParkingSlot> findAll() {
+        List<ParkingSlot> slots = new ArrayList<>();
+        String sql = "SELECT * FROM parking_slots ORDER BY floor, slot_number";
+        try (Connection conn = db.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) slots.add(mapRow(rs));
+        } catch (SQLException e) {
+            System.err.println("Error finding slots: " + e.getMessage());
+        }
+        return slots;
+    }
+
+    public List<ParkingSlot> findByFloor(int floor) {
+        List<ParkingSlot> slots = new ArrayList<>();
+        String sql = "SELECT * FROM parking_slots WHERE floor = ? ORDER BY slot_number";
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, floor);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) slots.add(mapRow(rs));
+        } catch (SQLException e) {
+            System.err.println("Error finding slots by floor: " + e.getMessage());
+        }
+        return slots;
+    }
+
+    public boolean updateStatus(int slotId, SlotStatus status) {
+        String sql = "UPDATE parking_slots SET status = ? WHERE id = ?";
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, status.name());
+            ps.setInt(2, slotId);
+            ps.executeUpdate();
+            return true;
+        } catch (SQLException e) {
+            System.err.println("Error updating slot status: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public ParkingSlot findById(int id) {
+        String sql = "SELECT * FROM parking_slots WHERE id = ?";
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, id);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return mapRow(rs);
+        } catch (SQLException e) {
+            System.err.println("Error finding slot: " + e.getMessage());
+        }
+        return null;
+    }
+
+    private ParkingSlot mapRow(ResultSet rs) throws SQLException {
+        return new ParkingSlot(
+            rs.getInt("id"),
+            rs.getString("slot_number"),
+            rs.getInt("floor"),
+            VehicleType.valueOf(rs.getString("type")),
+            SlotStatus.valueOf(rs.getString("status"))
+        );
+    }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\dao\TransactionDAO.java ==========
+package com.parksmart.dao;
+
+import com.parksmart.model.Transaction;
+import java.sql.*;
+import java.time.LocalDateTime;
+
+public class TransactionDAO {
+    private final DatabaseManager db = DatabaseManager.getInstance();
+
+    public boolean save(Transaction t) {
+        String sql = "INSERT INTO transactions (session_id, amount, discount, payment_time, receipt) VALUES (?, ?, ?, ?, ?)";
+        try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, t.getSessionId());
+            ps.setDouble(2, t.getAmount());
+            ps.setDouble(3, t.getDiscount());
+            ps.setString(4, LocalDateTime.now().toString());
+            ps.setString(5, t.getReceipt());
+            ps.executeUpdate();
+            return true;
+        } catch (SQLException e) { System.err.println(e.getMessage()); return false; }
+    }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\dao\UserDAO.java ==========
+package com.parksmart.dao;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+
+import com.parksmart.model.User;
+import com.parksmart.model.enums.Role;
+
+public class UserDAO {
+    private final DatabaseManager db = DatabaseManager.getInstance();
+
+    public User findByUsername(String username) {
+        String sql = "SELECT * FROM users WHERE username = ? AND active = 1";
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, username);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return mapRow(rs);
+        } catch (SQLException e) {
+            System.err.println("Error finding user: " + e.getMessage());
+        }
+        return null;
+    }
+
+    public List<User> findAll() {
+        List<User> users = new ArrayList<>();
+        String sql = "SELECT * FROM users";
+        try (Connection conn = db.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) users.add(mapRow(rs));
+        } catch (SQLException e) {
+            System.err.println("Error finding all users: " + e.getMessage());
+        }
+        return users;
+    }
+
+    public boolean save(User user) {
+        String sql = "INSERT INTO users (name, username, password_hash, role) VALUES (?, ?, ?, ?)";
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, user.getName());
+            ps.setString(2, user.getUsername());
+            ps.setString(3, user.getPasswordHash());
+            ps.setString(4, user.getRole().name());
+            ps.executeUpdate();
+            return true;
+        } catch (SQLException e) {
+            System.err.println("Error saving user: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public boolean deactivate(int userId) {
+        String sql = "UPDATE users SET active = 0 WHERE id = ?";
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            ps.executeUpdate();
+            return true;
+        } catch (SQLException e) {
+            System.err.println("Error deactivating user: " + e.getMessage());
+            return false;
+        }
+    }
+
+    private User mapRow(ResultSet rs) throws SQLException {
+        return new User(
+            rs.getInt("id"),
+            rs.getString("name"),
+            rs.getString("username"),
+            rs.getString("password_hash"),
+            Role.valueOf(rs.getString("role")),
+            rs.getInt("active") == 1
+        );
+    }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\dao\VehicleDAO.java ==========
+package com.parksmart.dao;
+
+import com.parksmart.model.Vehicle;
+import com.parksmart.model.enums.VehicleType;
+import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
+
+public class VehicleDAO {
+    private final DatabaseManager db = DatabaseManager.getInstance();
+
+    public Vehicle findByPlate(String plate) {
+        String sql = "SELECT * FROM vehicles WHERE license_plate = ?";
+        try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, plate.toUpperCase());
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return mapRow(rs);
+        } catch (SQLException e) { System.err.println(e.getMessage()); }
+        return null;
+    }
+
+    public Vehicle save(Vehicle v) {
+        String sql = "INSERT OR IGNORE INTO vehicles (license_plate, owner_name, vehicle_type) VALUES (?, ?, ?)";
+        try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            ps.setString(1, v.getLicensePlate().toUpperCase());
+            ps.setString(2, v.getOwnerName());
+            ps.setString(3, v.getVehicleType().name());
+            ps.executeUpdate();
+            ResultSet keys = ps.getGeneratedKeys();
+            if (keys.next()) v.setId(keys.getInt(1));
+        } catch (SQLException e) { System.err.println(e.getMessage()); }
+        return findByPlate(v.getLicensePlate());
+    }
+
+    public List<Vehicle> findAll() {
+        List<Vehicle> list = new ArrayList<>();
+        try (Connection conn = db.getConnection(); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery("SELECT * FROM vehicles")) {
+            while (rs.next()) list.add(mapRow(rs));
+        } catch (SQLException e) { System.err.println(e.getMessage()); }
+        return list;
+    }
+
+    private Vehicle mapRow(ResultSet rs) throws SQLException {
+        return new Vehicle(rs.getInt("id"), rs.getString("license_plate"), rs.getString("owner_name"), VehicleType.valueOf(rs.getString("vehicle_type")));
+    }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\model\enums\Role.java ==========
+package com.parksmart.model.enums;
+
+public enum Role {
+    ADMIN, MANAGER, ATTENDANT, CUSTOMER
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\model\enums\SlotStatus.java ==========
+package com.parksmart.model.enums;
+
+public enum SlotStatus {
+    AVAILABLE, LOCKING, OCCUPIED, RESERVED, MAINTENANCE
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\model\enums\VehicleType.java ==========
+package com.parksmart.model.enums;
+
+public enum VehicleType {
+    BIKE, CAR, SUV
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\model\ParkingSession.java ==========
+package com.parksmart.model;
+
+import java.time.LocalDateTime;
+
+public class ParkingSession {
+    private int id;
+    private int vehicleId;
+    private int slotId;
+    private int userId;
+    private LocalDateTime entryTime;
+    private LocalDateTime exitTime;
+    private boolean active;
+
+    public ParkingSession() {}
+
+    public ParkingSession(int id, int vehicleId, int slotId, int userId, LocalDateTime entryTime) {
+        this.id = id;
+        this.vehicleId = vehicleId;
+        this.slotId = slotId;
+        this.userId = userId;
+        this.entryTime = entryTime;
+        this.active = true;
+    }
+
+    public int getId() { return id; }
+    public void setId(int id) { this.id = id; }
+    public int getVehicleId() { return vehicleId; }
+    public void setVehicleId(int vehicleId) { this.vehicleId = vehicleId; }
+    public int getSlotId() { return slotId; }
+    public void setSlotId(int slotId) { this.slotId = slotId; }
+    public int getUserId() { return userId; }
+    public void setUserId(int userId) { this.userId = userId; }
+    public LocalDateTime getEntryTime() { return entryTime; }
+    public void setEntryTime(LocalDateTime entryTime) { this.entryTime = entryTime; }
+    public LocalDateTime getExitTime() { return exitTime; }
+    public void setExitTime(LocalDateTime exitTime) { this.exitTime = exitTime; }
+    public boolean isActive() { return active; }
+    public void setActive(boolean active) { this.active = active; }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\model\ParkingSlot.java ==========
+package com.parksmart.model;
+
+import com.parksmart.model.enums.SlotStatus;
+import com.parksmart.model.enums.VehicleType;
+
+public class ParkingSlot {
+    private int id;
+    private String slotNumber;
+    private int floor;
+    private VehicleType type;
+    private SlotStatus status;
+
+    public ParkingSlot() {}
+
+    public ParkingSlot(int id, String slotNumber, int floor, VehicleType type, SlotStatus status) {
+        this.id = id;
+        this.slotNumber = slotNumber;
+        this.floor = floor;
+        this.type = type;
+        this.status = status;
+    }
+
+    public int getId() { return id; }
+    public void setId(int id) { this.id = id; }
+    public String getSlotNumber() { return slotNumber; }
+    public void setSlotNumber(String slotNumber) { this.slotNumber = slotNumber; }
+    public int getFloor() { return floor; }
+    public void setFloor(int floor) { this.floor = floor; }
+    public VehicleType getType() { return type; }
+    public void setType(VehicleType type) { this.type = type; }
+    public SlotStatus getStatus() { return status; }
+    public void setStatus(SlotStatus status) { this.status = status; }
+
+    @Override
+    public String toString() {
+        return "ParkingSlot{id=" + id + ", slotNumber='" + slotNumber + "', floor=" + floor + ", status=" + status + "}";
+    }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\model\Transaction.java ==========
+package com.parksmart.model;
+
+import java.time.LocalDateTime;
+
+public class Transaction {
+    private int id;
+    private int sessionId;
+    private double amount;
+    private double discount;
+    private LocalDateTime paymentTime;
+    private String receipt;
+
+    public Transaction() {}
+
+    public Transaction(int id, int sessionId, double amount, double discount, LocalDateTime paymentTime, String receipt) {
+        this.id = id;
+        this.sessionId = sessionId;
+        this.amount = amount;
+        this.discount = discount;
+        this.paymentTime = paymentTime;
+        this.receipt = receipt;
+    }
+
+    public int getId() { return id; }
+    public void setId(int id) { this.id = id; }
+    public int getSessionId() { return sessionId; }
+    public void setSessionId(int sessionId) { this.sessionId = sessionId; }
+    public double getAmount() { return amount; }
+    public void setAmount(double amount) { this.amount = amount; }
+    public double getDiscount() { return discount; }
+    public void setDiscount(double discount) { this.discount = discount; }
+    public LocalDateTime getPaymentTime() { return paymentTime; }
+    public void setPaymentTime(LocalDateTime paymentTime) { this.paymentTime = paymentTime; }
+    public String getReceipt() { return receipt; }
+    public void setReceipt(String receipt) { this.receipt = receipt; }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\model\User.java ==========
+package com.parksmart.model;
+
+import com.parksmart.model.enums.Role;
+
+public class User {
+    private int id;
+    private String name;
+    private String username;
+    private String passwordHash;
+    private Role role;
+    private boolean active;
+
+    public User() {}
+
+    public User(int id, String name, String username, String passwordHash, Role role, boolean active) {
+        this.id = id;
+        this.name = name;
+        this.username = username;
+        this.passwordHash = passwordHash;
+        this.role = role;
+        this.active = active;
+    }
+
+    public int getId() { return id; }
+    public void setId(int id) { this.id = id; }
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+    public String getUsername() { return username; }
+    public void setUsername(String username) { this.username = username; }
+    public String getPasswordHash() { return passwordHash; }
+    public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
+    public Role getRole() { return role; }
+    public void setRole(Role role) { this.role = role; }
+    public boolean isActive() { return active; }
+    public void setActive(boolean active) { this.active = active; }
+
+    @Override
+    public String toString() {
+        return "User{id=" + id + ", name='" + name + "', role=" + role + "}";
+    }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\model\Vehicle.java ==========
+package com.parksmart.model;
+
+import com.parksmart.model.enums.VehicleType;
+
+public class Vehicle {
+    private int id;
+    private String licensePlate;
+    private String ownerName;
+    private VehicleType vehicleType;
+
+    public Vehicle() {}
+
+    public Vehicle(int id, String licensePlate, String ownerName, VehicleType vehicleType) {
+        this.id = id;
+        this.licensePlate = licensePlate;
+        this.ownerName = ownerName;
+        this.vehicleType = vehicleType;
+    }
+
+    public int getId() { return id; }
+    public void setId(int id) { this.id = id; }
+    public String getLicensePlate() { return licensePlate; }
+    public void setLicensePlate(String licensePlate) { this.licensePlate = licensePlate; }
+    public String getOwnerName() { return ownerName; }
+    public void setOwnerName(String ownerName) { this.ownerName = ownerName; }
+    public VehicleType getVehicleType() { return vehicleType; }
+    public void setVehicleType(VehicleType vehicleType) { this.vehicleType = vehicleType; }
+
+    @Override
+    public String toString() {
+        return "Vehicle{id=" + id + ", licensePlate='" + licensePlate + "', ownerName='" + ownerName + "'}";
+    }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\service\AnalyticsService.java ==========
+package com.parksmart.service;
+
+import com.parksmart.dao.DatabaseManager;
+import java.sql.*;
+import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.Map;
+
+public class AnalyticsService {
+    private static AnalyticsService instance;
+    private final DatabaseManager db = DatabaseManager.getInstance();
+
+    private AnalyticsService() {}
+
+    public static AnalyticsService getInstance() {
+        if (instance == null) instance = new AnalyticsService();
+        return instance;
+    }
+
+    public double getTodayRevenue() {
+        String today = LocalDate.now().toString();
+        String sql = "SELECT COALESCE(SUM(amount - discount), 0) FROM transactions WHERE payment_time LIKE ?";
+        try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, today + "%");
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return rs.getDouble(1);
+        } catch (SQLException e) { System.err.println(e.getMessage()); }
+        return 0;
+    }
+
+    public double getTotalRevenue() {
+        String sql = "SELECT COALESCE(SUM(amount - discount), 0) FROM transactions";
+        try (Connection conn = db.getConnection(); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
+            if (rs.next()) return rs.getDouble(1);
+        } catch (SQLException e) { System.err.println(e.getMessage()); }
+        return 0;
+    }
+
+    public int getTotalVehicles() {
+        String sql = "SELECT COUNT(*) FROM vehicles";
+        try (Connection conn = db.getConnection(); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
+            if (rs.next()) return rs.getInt(1);
+        } catch (SQLException e) { System.err.println(e.getMessage()); }
+        return 0;
+    }
+
+    public Map<String, Double> getRevenueByVehicleType() {
+        Map<String, Double> map = new HashMap<>();
+        map.put("BIKE", 0.0); map.put("CAR", 0.0); map.put("SUV", 0.0);
+        String sql = "SELECT v.vehicle_type, COALESCE(SUM(t.amount - t.discount), 0) as rev " +
+                     "FROM transactions t JOIN parking_sessions s ON t.session_id = s.id " +
+                     "JOIN vehicles v ON s.vehicle_id = v.id GROUP BY v.vehicle_type";
+        try (Connection conn = db.getConnection(); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) map.put(rs.getString("vehicle_type"), rs.getDouble("rev"));
+        } catch (SQLException e) { System.err.println(e.getMessage()); }
+        return map;
+    }
+
+    public Map<String, Integer> getSlotUtilization() {
+        Map<String, Integer> map = new HashMap<>();
+        String sql = "SELECT status, COUNT(*) as cnt FROM parking_slots GROUP BY status";
+        try (Connection conn = db.getConnection(); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) map.put(rs.getString("status"), rs.getInt("cnt"));
+        } catch (SQLException e) { System.err.println(e.getMessage()); }
+        return map;
+    }
+
+    public int getTotalSessions() {
+        String sql = "SELECT COUNT(*) FROM parking_sessions";
+        try (Connection conn = db.getConnection(); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
+            if (rs.next()) return rs.getInt(1);
+        } catch (SQLException e) { System.err.println(e.getMessage()); }
+        return 0;
+    }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\service\AuthService.java ==========
+package com.parksmart.service;
+
+import org.mindrot.jbcrypt.BCrypt;
+
+import com.parksmart.dao.UserDAO;
+import com.parksmart.model.User;
+import com.parksmart.model.enums.Role;
+
+public class AuthService {
+    private static AuthService instance;
+    private final UserDAO userDAO;
+    private User currentUser;
+
+    private AuthService() {
+        this.userDAO = new UserDAO();
+    }
+
+    public static AuthService getInstance() {
+        if (instance == null) {
+            instance = new AuthService();
+        }
+        return instance;
+    }
+
+    public User login(String username, String password) {
+        User user = userDAO.findByUsername(username);
+        if (user == null) return null;
+        if (BCrypt.checkpw(password, user.getPasswordHash())) {
+            currentUser = user;
+            System.out.println("Login successful: " + user.getName() + " (" + user.getRole() + ")");
+            return user;
+        }
+        return null;
+    }
+
+    public void logout() {
+        System.out.println("User logged out: " + (currentUser != null ? currentUser.getName() : "none"));
+        currentUser = null;
+    }
+
+    public User getCurrentUser() {
+        return currentUser;
+    }
+
+    public boolean isLoggedIn() {
+        return currentUser != null;
+    }
+
+    public boolean hasPermission(Role requiredRole) {
+        if (currentUser == null) return false;
+        return switch (requiredRole) {
+            case CUSTOMER  -> true;
+            case ATTENDANT -> currentUser.getRole() != Role.CUSTOMER;
+            case MANAGER   -> currentUser.getRole() == Role.MANAGER || currentUser.getRole() == Role.ADMIN;
+            case ADMIN     -> currentUser.getRole() == Role.ADMIN;
+        };
+    }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\service\BillingService.java ==========
+package com.parksmart.service;
+
+import java.time.Duration;
+import java.time.LocalDateTime;
+
+import com.parksmart.model.enums.VehicleType;
+
+public class BillingService {
+    private static BillingService instance;
+
+    // Rates per hour
+    private static final double BIKE_RATE  = 20.0;
+    private static final double CAR_RATE   = 50.0;
+    private static final double SUV_RATE   = 80.0;
+
+    private BillingService() {}
+
+    public static BillingService getInstance() {
+        if (instance == null) {
+            instance = new BillingService();
+        }
+        return instance;
+    }
+
+    public double calculateFee(VehicleType type, LocalDateTime entryTime, LocalDateTime exitTime) {
+        Duration duration = Duration.between(entryTime, exitTime);
+        long minutes = duration.toMinutes();
+        if (minutes < 1) minutes = 1;
+
+        // Minimum 1 hour charge, then per 30 min
+        double hours = Math.ceil(minutes / 30.0) / 2.0;
+        if (hours < 1.0) hours = 1.0;
+
+        double rate = switch (type) {
+            case BIKE -> BIKE_RATE;
+            case CAR  -> CAR_RATE;
+            case SUV  -> SUV_RATE;
+        };
+        return Math.round(hours * rate * 100.0) / 100.0;
+    }
+
+    public double applyDiscount(double amount, double discountPercent) {
+        if (discountPercent < 0 || discountPercent > 100) return amount;
+        double discounted = amount - (amount * discountPercent / 100);
+        return Math.round(discounted * 100.0) / 100.0;
+    }
+
+    public String generateReceipt(String vehicleNumber, String slotNumber,
+                                   LocalDateTime entry, LocalDateTime exit,
+                                   double amount, double discount) {
+        return """
+            ============================
+                  PARKSMART RECEIPT
+            ============================
+            Vehicle  : %s
+            Slot     : %s
+            Entry    : %s
+            Exit     : %s
+            Amount   : Rs. %.2f
+            Discount : %.0f%%
+            Total    : Rs. %.2f
+            ============================
+                  Thank You!
+            ============================
+            """.formatted(
+                vehicleNumber, slotNumber,
+                entry.toString().replace("T", " ").substring(0, 16),
+                exit.toString().replace("T", " ").substring(0, 16),
+                amount, discount,
+                applyDiscount(amount, discount)
+            );
+    }
+
+    public double[] getRates() {
+        return new double[]{BIKE_RATE, CAR_RATE, SUV_RATE};
+    }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\service\ParkingService.java ==========
+package com.parksmart.service;
+
+import java.util.List;
+
+import com.parksmart.concurrent.LockManager;
+import com.parksmart.dao.SlotDAO;
+import com.parksmart.model.ParkingSlot;
+import com.parksmart.model.enums.SlotStatus;
+
+public class ParkingService {
+    private static ParkingService instance;
+    private final SlotDAO slotDAO;
+    private final LockManager lockManager;
+
+    private ParkingService() {
+        this.slotDAO = new SlotDAO();
+        this.lockManager = LockManager.getInstance();
+    }
+
+    public static ParkingService getInstance() {
+        if (instance == null) {
+            instance = new ParkingService();
+        }
+        return instance;
+    }
+
+    public boolean lockSlot(int slotId, int userId) {
+        ParkingSlot slot = slotDAO.findById(slotId);
+        if (slot == null || slot.getStatus() != SlotStatus.AVAILABLE) {
+            System.out.println("Slot not available: " + slotId);
+            return false;
+        }
+        boolean locked = lockManager.acquireLock(slotId, userId);
+        if (locked) {
+            slotDAO.updateStatus(slotId, SlotStatus.LOCKING);
+            System.out.println("Slot locked: " + slotId + " by user: " + userId);
+        } else {
+            System.out.println("Slot already locked: " + slotId);
+        }
+        return locked;
+    }
+
+    public boolean confirmBooking(int slotId, int userId) {
+        if (!lockManager.isLocked(slotId)) return false;
+        if (lockManager.getLock(slotId).getUserId() != userId) return false;
+        slotDAO.updateStatus(slotId, SlotStatus.OCCUPIED);
+        lockManager.releaseLock(slotId, userId);
+        System.out.println("Booking confirmed for slot: " + slotId);
+        return true;
+    }
+
+    public boolean releaseSlot(int slotId) {
+        slotDAO.updateStatus(slotId, SlotStatus.AVAILABLE);
+        System.out.println("Slot released: " + slotId);
+        return true;
+    }
+
+    public List<ParkingSlot> getAllSlots() {
+        return slotDAO.findAll();
+    }
+
+    public List<ParkingSlot> getSlotsByFloor(int floor) {
+        return slotDAO.findByFloor(floor);
+    }
+
+    public long getAvailableCount() {
+        return slotDAO.findAll().stream()
+            .filter(s -> s.getStatus() == SlotStatus.AVAILABLE)
+            .count();
+    }
+
+    public long getOccupiedCount() {
+        return slotDAO.findAll().stream()
+            .filter(s -> s.getStatus() == SlotStatus.OCCUPIED)
+            .count();
+    }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\service\QRCodeService.java ==========
+package com.parksmart.service;
+
+import com.google.zxing.*;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
+import javafx.scene.image.Image;
+import javafx.scene.image.PixelWriter;
+import javafx.scene.image.WritableImage;
+import javafx.scene.paint.Color;
+import java.util.HashMap;
+import java.util.Map;
+
+public class QRCodeService {
+
+    public static Image generateQR(String data, int size, Color dark, Color light) {
+        try {
+            Map<EncodeHintType, Object> hints = new HashMap<>();
+            hints.put(EncodeHintType.MARGIN, 1);
+            hints.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M);
+            BitMatrix matrix = new MultiFormatWriter()
+                .encode(data, BarcodeFormat.QR_CODE, size, size, hints);
+            WritableImage img = new WritableImage(size, size);
+            PixelWriter pw = img.getPixelWriter();
+            for (int x = 0; x < size; x++)
+                for (int y = 0; y < size; y++)
+                    pw.setColor(x, y, matrix.get(x, y) ? dark : light);
+            return img;
+        } catch (Exception e) { e.printStackTrace(); return null; }
+    }
+
+    public static Image generateQR(String data, int size) {
+        return generateQR(data, size, Color.web("#00FF88"), Color.web("#0A0F1A"));
+    }
+
+    public static String buildTicketData(int sessionId, String plate, String slot, String time) {
+        return "PARKSMART:TKT-" + sessionId + "|" + plate + "|" + slot + "|" + time;
+    }
+}
+
+========== D:\parksmart\parksmart\src\main\java\com\parksmart\Main.java ==========
+package com.parksmart;
+import com.parksmart.concurrent.LockSweeper;
+import com.parksmart.dao.DatabaseManager;
+import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Scene;
+import javafx.stage.Stage;
+public class Main extends Application {
+    public static Stage mainStage;
+    public static void switchScene(String fxml) {
+        try {
+            FXMLLoader l = new FXMLLoader(Main.class.getResource("/com/parksmart/fxml/" + fxml));
+            Scene sc = new Scene(l.load());
+            sc.getStylesheets().add(Main.class.getResource("/com/parksmart/css/dark-theme.css").toExternalForm());
+            mainStage.setScene(sc);
+            mainStage.setMaximized(false);
+            mainStage.setMaximized(true);
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+    @Override
+    public void start(Stage stage) throws Exception {
+        mainStage = stage;
+        DatabaseManager.getInstance();
+        LockSweeper.getInstance().start();
+        FXMLLoader loader = new FXMLLoader(getClass().getResource("/com/parksmart/fxml/welcome.fxml"));
+        Scene scene = new Scene(loader.load());
+        scene.getStylesheets().add(getClass().getResource("/com/parksmart/css/dark-theme.css").toExternalForm());
+        stage.setTitle("ParkSmart");
+        stage.setScene(scene);
+        stage.show();
+        stage.setMaximized(true);
+    }
+    @Override
+    public void stop() { LockSweeper.getInstance().stop(); }
+    public static void main(String[] args) { launch(args); }
+}
+
+========== D:\parksmart\parksmart\src\main\resources\com\parksmart\css\dark-theme.css ==========
+.root-pane { -fx-background-color: #0a0d14; }
+.login-box {
+    -fx-background-color: #111621;
+    -fx-background-radius: 12;
+    -fx-border-color: #1e2d47;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-min-width: 400;
+    -fx-max-width: 400;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 30, 0, 0, 8);
+}
+.logo-letter { -fx-text-fill: #00c2ff; -fx-font-size: 52px; -fx-font-weight: bold; }
+.logo-title { -fx-text-fill: white; -fx-font-size: 28px; -fx-font-weight: bold; }
+.logo-sub { -fx-text-fill: #64748b; -fx-font-size: 13px; }
+.field-label { -fx-text-fill: #94a3b8; -fx-font-size: 12px; }
+.input-field {
+    -fx-background-color: #1a2133;
+    -fx-text-fill: white;
+    -fx-prompt-text-fill: #475569;
+    -fx-border-color: #1e2d47;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 12;
+    -fx-font-size: 14px;
+}
+.input-field:focused { -fx-border-color: #00c2ff; }
+.login-btn {
+    -fx-background-color: #00c2ff;
+    -fx-text-fill: #0a0d14;
+    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+    -fx-background-radius: 6;
+}
+.login-btn:hover { -fx-background-color: #38d4ff; }
+.error-label { -fx-text-fill: #f43f5e; -fx-font-size: 12px; }
+.hint-label { -fx-text-fill: #475569; -fx-font-size: 11px; }
+.sidebar {
+    -fx-background-color: #111621;
+    -fx-border-color: #1e2d47;
+    -fx-border-width: 0 1 0 0;
+    -fx-min-width: 220;
+    -fx-max-width: 220;
+}
+.sidebar-title { -fx-text-fill: #00c2ff; -fx-font-size: 18px; -fx-font-weight: bold; }
+.nav-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #64748b;
+    -fx-font-size: 13px;
+    -fx-alignment: CENTER-LEFT;
+    -fx-padding: 12 20 12 20;
+    -fx-cursor: hand;
+    -fx-max-width: Infinity;
+    -fx-border-width: 0 0 0 2;
+    -fx-border-color: transparent;
+}
+.nav-btn:hover { -fx-background-color: #1a2133; -fx-text-fill: #e2e8f0; }
+.nav-btn-active { -fx-background-color: rgba(0,194,255,0.08); -fx-text-fill: #00c2ff; -fx-border-color: #00c2ff; }
+.stat-card {
+    -fx-background-color: #111621;
+    -fx-background-radius: 10;
+    -fx-border-color: #1e2d47;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+    -fx-padding: 20;
+}
+.stat-number { -fx-text-fill: white; -fx-font-size: 36px; -fx-font-weight: bold; }
+.stat-label { -fx-text-fill: #64748b; -fx-font-size: 11px; }
+.slot-available { -fx-background-color: #166534; -fx-text-fill: #4ade80; -fx-background-radius: 6; -fx-cursor: hand; -fx-min-width: 60; -fx-min-height: 50; }
+.slot-occupied { -fx-background-color: #7f1d1d; -fx-text-fill: #fca5a5; -fx-background-radius: 6; -fx-min-width: 60; -fx-min-height: 50; }
+.slot-locking { -fx-background-color: #78350f; -fx-text-fill: #fcd34d; -fx-background-radius: 6; -fx-min-width: 60; -fx-min-height: 50; }
+.section-title { -fx-text-fill: white; -fx-font-size: 20px; -fx-font-weight: bold; }
+.content-area { -fx-background-color: #0a0d14; -fx-padding: 32; }
+
+/* â”€â”€ HUD / GAMING THEME â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.hud-bar {
+    -fx-background-color: #0A0F1A;
+    -fx-border-color: #00C2FF;
+    -fx-font-family: monospace;
+}
+.hud-title {
+    -fx-text-fill: #00C2FF;
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-font-family: monospace;
+}
+.hud-btn {
+    -fx-background-color: #0D1525;
+    -fx-text-fill: #00C2FF;
+    -fx-border-color: #00C2FF;
+    -fx-border-width: 1;
+    -fx-font-family: monospace;
+    -fx-font-size: 11px;
+    -fx-cursor: hand;
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+}
+.hud-btn:hover { -fx-background-color: #162030; }
+.hud-stat-green { -fx-text-fill: #00FF88; -fx-font-family: monospace; -fx-font-weight: bold; }
+.hud-stat-red   { -fx-text-fill: #FF2244; -fx-font-family: monospace; -fx-font-weight: bold; }
+.hud-stat-gold  { -fx-text-fill: #FFB800; -fx-font-family: monospace; -fx-font-weight: bold; }
+.scanline-label { -fx-text-fill: #FFB800; -fx-font-family: monospace; -fx-font-size: 11px; -fx-background-color: #080C14; }
+/* â”€â”€ ANIMATIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+@keyframes fadeIn       { from { opacity: 0; translate: 0 18px; } to { opacity: 1; translate: 0 0; } }
+@keyframes fadeSlideIn  { from { opacity: 0; translate: -24px 0; } to { opacity: 1; translate: 0 0; } }
+@keyframes countUp      { from { opacity: 0; scale: 0.7; } to { opacity: 1; scale: 1; } }
+@keyframes pulseGreen   { 0%,100% { -fx-effect: dropshadow(gaussian,#00FF88,8,0.6,0,0); } 50% { -fx-effect: dropshadow(gaussian,#00FF88,22,0.9,0,0); } }
+@keyframes pulseRed     { 0%,100% { -fx-effect: dropshadow(gaussian,#FF2244,8,0.6,0,0); } 50% { -fx-effect: dropshadow(gaussian,#FF2244,22,0.9,0,0); } }
+@keyframes pulseBlue    { 0%,100% { -fx-effect: dropshadow(gaussian,#00C2FF,8,0.6,0,0); } 50% { -fx-effect: dropshadow(gaussian,#00C2FF,22,0.9,0,0); } }
+
+/* â”€â”€ ANIMATED STAT CARDS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.stat-card-green {
+    -fx-background-color: #0A1A10;
+    -fx-background-radius: 12;
+    -fx-border-color: #00FF88;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-padding: 20;
+    -fx-effect: dropshadow(gaussian, #00FF88, 12, 0.4, 0, 0);
+}
+.stat-card-red {
+    -fx-background-color: #1A0A0A;
+    -fx-background-radius: 12;
+    -fx-border-color: #FF2244;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-padding: 20;
+    -fx-effect: dropshadow(gaussian, #FF2244, 12, 0.4, 0, 0);
+}
+.stat-card-blue {
+    -fx-background-color: #0A0F1A;
+    -fx-background-radius: 12;
+    -fx-border-color: #00C2FF;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-padding: 20;
+    -fx-effect: dropshadow(gaussian, #00C2FF, 12, 0.4, 0, 0);
+}
+.stat-card-purple {
+    -fx-background-color: #100A1A;
+    -fx-background-radius: 12;
+    -fx-border-color: #A855F7;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-padding: 20;
+    -fx-effect: dropshadow(gaussian, #A855F7, 12, 0.4, 0, 0);
+}
+.stat-num-green  { -fx-text-fill: #00FF88; -fx-font-size: 38px; -fx-font-weight: bold; }
+.stat-num-red    { -fx-text-fill: #FF2244; -fx-font-size: 38px; -fx-font-weight: bold; }
+.stat-num-blue   { -fx-text-fill: #00C2FF; -fx-font-size: 38px; -fx-font-weight: bold; }
+.stat-num-purple { -fx-text-fill: #A855F7; -fx-font-size: 38px; -fx-font-weight: bold; }
+
+/* â”€â”€ LIVE CLOCK â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.live-clock {
+    -fx-text-fill: #00C2FF;
+    -fx-font-size: 13px;
+    -fx-font-family: monospace;
+    -fx-effect: dropshadow(gaussian, #00C2FF, 6, 0.5, 0, 0);
+}
+.pulse-dot {
+    -fx-background-color: #00FF88;
+    -fx-background-radius: 5;
+    -fx-min-width: 8;
+    -fx-min-height: 8;
+    -fx-max-width: 8;
+    -fx-max-height: 8;
+    -fx-effect: dropshadow(gaussian, #00FF88, 8, 0.8, 0, 0);
+}
+
+/* â”€â”€ NAV BUTTON UPGRADED â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.nav-btn-v2 {
+    -fx-background-color: transparent;
+    -fx-text-fill: #64748b;
+    -fx-font-size: 13px;
+    -fx-alignment: CENTER-LEFT;
+    -fx-padding: 13 20 13 20;
+    -fx-cursor: hand;
+    -fx-max-width: Infinity;
+    -fx-border-width: 0 0 0 2;
+    -fx-border-color: transparent;
+    -fx-font-family: monospace;
+}
+.nav-btn-v2:hover {
+    -fx-background-color: #111D2E;
+    -fx-text-fill: #E2E8F0;
+    -fx-border-color: #1e2d47;
+}
+.nav-btn-active-v2 {
+    -fx-background-color: rgba(0,194,255,0.10);
+    -fx-text-fill: #00C2FF;
+    -fx-border-color: #00C2FF;
+    -fx-effect: dropshadow(gaussian, #00C2FF, 6, 0.3, 0, 0);
+}
+
+/* â”€â”€ SCREEN CONTENT FADE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.content-fade { -fx-opacity: 1; }
+
+/* â”€â”€ TOUCH BUTTONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.touch-btn-green {
+    -fx-background-color: #003320;
+    -fx-text-fill: #00FF88;
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+    -fx-font-family: monospace;
+    -fx-background-radius: 16;
+    -fx-border-color: #00FF88;
+    -fx-border-radius: 16;
+    -fx-border-width: 2;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, #00FF88, 16, 0.5, 0, 0);
+    -fx-min-height: 80;
+}
+.touch-btn-green:hover {
+    -fx-background-color: #004D2E;
+    -fx-effect: dropshadow(gaussian, #00FF88, 28, 0.8, 0, 0);
+}
+.touch-btn-red {
+    -fx-background-color: #330010;
+    -fx-text-fill: #FF2244;
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+    -fx-font-family: monospace;
+    -fx-background-radius: 16;
+    -fx-border-color: #FF2244;
+    -fx-border-radius: 16;
+    -fx-border-width: 2;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, #FF2244, 16, 0.5, 0, 0);
+    -fx-min-height: 80;
+}
+.touch-btn-red:hover {
+    -fx-background-color: #4D0018;
+    -fx-effect: dropshadow(gaussian, #FF2244, 28, 0.8, 0, 0);
+}
+
+/* â”€â”€ INPUT FIELD GLOW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+.input-field:focused {
+    -fx-border-color: #00C2FF;
+    -fx-effect: dropshadow(gaussian, #00C2FF, 10, 0.5, 0, 0);
+}
+
+========== D:\parksmart\parksmart\src\main\resources\com\parksmart\fxml\analytics.fxml ==========
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.chart.*?>
+
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.parksmart.controller.AnalyticsController"
+      spacing="0" styleClass="root-pane">
+
+    <Label text="Revenue Analytics" styleClass="section-title"
+           style="-fx-padding:20 24 12 24;-fx-font-family:monospace;"/>
+
+    <HBox spacing="12" style="-fx-padding:0 24 16 24;">
+        <VBox styleClass="stat-card" alignment="CENTER" spacing="6" HBox.hgrow="ALWAYS" prefHeight="100">
+            <Label fx:id="todayRevenue" text="Rs.0" style="-fx-text-fill:#4ade80;-fx-font-size:24px;-fx-font-weight:bold;"/>
+            <Label text="TODAY" style="-fx-text-fill:#64748b;-fx-font-size:10px;-fx-font-family:monospace;"/>
+        </VBox>
+        <VBox styleClass="stat-card" alignment="CENTER" spacing="6" HBox.hgrow="ALWAYS" prefHeight="100">
+            <Label fx:id="totalRevenue" text="Rs.0" style="-fx-text-fill:#00c2ff;-fx-font-size:24px;-fx-font-weight:bold;"/>
+            <Label text="TOTAL" style="-fx-text-fill:#64748b;-fx-font-size:10px;-fx-font-family:monospace;"/>
+        </VBox>
+        <VBox styleClass="stat-card" alignment="CENTER" spacing="6" HBox.hgrow="ALWAYS" prefHeight="100">
+            <Label fx:id="totalVehicles" text="0" style="-fx-text-fill:#f59e0b;-fx-font-size:24px;-fx-font-weight:bold;"/>
+            <Label text="VEHICLES" style="-fx-text-fill:#64748b;-fx-font-size:10px;-fx-font-family:monospace;"/>
+        </VBox>
+        <VBox styleClass="stat-card" alignment="CENTER" spacing="6" HBox.hgrow="ALWAYS" prefHeight="100">
+            <Label fx:id="avgRevenue" text="Rs.0" style="-fx-text-fill:#a855f7;-fx-font-size:24px;-fx-font-weight:bold;"/>
+            <Label text="AVG/VEHICLE" style="-fx-text-fill:#64748b;-fx-font-size:10px;-fx-font-family:monospace;"/>
+        </VBox>
+    </HBox>
+
+    <HBox spacing="16" style="-fx-padding:0 24 24 24;" VBox.vgrow="ALWAYS">
+        <VBox spacing="8" HBox.hgrow="ALWAYS" VBox.vgrow="ALWAYS">
+            <Label text="Revenue by Vehicle Type" style="-fx-text-fill:#94a3b8;-fx-font-size:12px;"/>
+            <BarChart fx:id="revenueByTypeChart" VBox.vgrow="ALWAYS"
+                      style="-fx-background-color:#111621;-fx-border-color:#1e2d47;-fx-border-width:1;-fx-background-radius:10;-fx-border-radius:10;">
+                <xAxis><CategoryAxis style="-fx-tick-label-fill:#64748b;"/></xAxis>
+                <yAxis><NumberAxis style="-fx-tick-label-fill:#64748b;"/></yAxis>
+            </BarChart>
+        </VBox>
+        <VBox spacing="8" prefWidth="300" VBox.vgrow="ALWAYS">
+            <Label text="Slot Utilization" style="-fx-text-fill:#94a3b8;-fx-font-size:12px;"/>
+            <PieChart fx:id="utilizationChart" VBox.vgrow="ALWAYS"
+                      style="-fx-background-color:#111621;-fx-border-color:#1e2d47;-fx-border-width:1;-fx-background-radius:10;-fx-border-radius:10;"
+                      labelsVisible="true"/>
+        </VBox>
+    </HBox>
+</VBox>
+
+========== D:\parksmart\parksmart\src\main\resources\com\parksmart\fxml\dashboard.fxml ==========
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.shape.*?>
+
+<BorderPane xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.parksmart.controller.DashboardController"
+            styleClass="root-pane">
+    <left>
+        <VBox styleClass="sidebar" spacing="0">
+            <!-- Logo -->
+            <VBox style="-fx-padding: 22 20 10 20;" spacing="2">
+                <Label text="ParkSmart" styleClass="sidebar-title"/>
+                <Label fx:id="clockLabel" text="00:00:00" styleClass="live-clock"/>
+            </VBox>
+
+            <!-- Active sessions indicator -->
+            <HBox style="-fx-padding: 6 20 12 20;" spacing="8" alignment="CENTER_LEFT">
+                <Label styleClass="pulse-dot"/>
+                <Label fx:id="activeSessionsLabel" text="0 active sessions"
+                       style="-fx-text-fill: #00FF88; -fx-font-size: 11px; -fx-font-family: monospace;"/>
+            </HBox>
+
+            <Label text="NAVIGATION"
+                   style="-fx-text-fill: #1E3A5F; -fx-font-size: 10px; -fx-padding: 8 20 6 20; -fx-font-family: monospace;"/>
+
+            <Button fx:id="btnDashboard" text="  Dashboard"   styleClass="nav-btn-v2" onAction="#showDashboard"/>
+            <Button fx:id="btnSlots"     text="  Parking Grid" styleClass="nav-btn-v2" onAction="#showSlots"/>
+            <Button fx:id="btnEntry"     text="  Vehicle Entry" styleClass="nav-btn-v2" onAction="#showEntry"/>
+            <Button fx:id="btnExit"      text="  Vehicle Exit"  styleClass="nav-btn-v2" onAction="#showExit"/>
+            <Button fx:id="btnAnalytics" text="  Analytics"    styleClass="nav-btn-v2" onAction="#showAnalytics"/>
+
+            <VBox VBox.vgrow="ALWAYS"/>
+
+            <Button text="  Logout" styleClass="nav-btn-v2" onAction="#handleLogout"
+                    style="-fx-text-fill: #FF4466; -fx-border-color: #FF4466; -fx-padding: 12 20 12 20;"/>
+            <Label fx:id="userLabel" text=""
+                   style="-fx-text-fill: #334155; -fx-font-size: 11px; -fx-padding: 10 20 14 20; -fx-font-family: monospace;"/>
+        </VBox>
+    </left>
+    <center>
+        <StackPane fx:id="contentArea" styleClass="content-area"/>
+    </center>
+</BorderPane>
+
+========== D:\parksmart\parksmart\src\main\resources\com\parksmart\fxml\entry.fxml ==========
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.parksmart.controller.VehicleEntryController"
+      spacing="0" styleClass="root-pane">
+
+    <HBox style="-fx-padding:16 24 14 24;-fx-background-color:#0A0F1A;-fx-border-color:#00C2FF;-fx-border-width:0 0 1 0;" alignment="CENTER_LEFT">
+        <Label text="[ VEHICLE ENTRY ]" style="-fx-text-fill:#00C2FF;-fx-font-size:17px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+    </HBox>
+
+    <HBox spacing="16" style="-fx-padding:16 20 20 20;" VBox.vgrow="ALWAYS">
+        <VBox spacing="12"
+              style="-fx-background-color:#0D1525;-fx-background-radius:12;-fx-border-color:#1E3A5F;-fx-border-radius:12;-fx-border-width:1;-fx-padding:20;"
+              prefWidth="380" maxWidth="420">
+            <Label text="New Vehicle Entry" style="-fx-text-fill:white;-fx-font-size:15px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+            <Label text="License Plate" styleClass="field-label"/>
+            <TextField fx:id="licensePlateField" promptText="e.g. MH12AB1234" styleClass="input-field"/>
+            <Label text="Owner Name" styleClass="field-label"/>
+            <TextField fx:id="ownerNameField" promptText="Enter owner name" styleClass="input-field"/>
+            <Label text="Vehicle Type" styleClass="field-label"/>
+            <ComboBox fx:id="vehicleTypeBox" maxWidth="Infinity" styleClass="input-field"/>
+            <Label text="Select Slot" styleClass="field-label"/>
+            <ComboBox fx:id="slotBox" maxWidth="Infinity" styleClass="input-field"/>
+            <Label fx:id="entryErrorLabel" text="" style="-fx-text-fill:#f43f5e;-fx-font-size:12px;-fx-font-family:monospace;"/>
+            <Button text="CONFIRM ENTRY" styleClass="touch-btn-green" maxWidth="Infinity" onAction="#handleEntry"
+                    style="-fx-min-height:52;-fx-font-size:16px;"/>
+        </VBox>
+
+        <VBox spacing="10" VBox.vgrow="ALWAYS" HBox.hgrow="ALWAYS">
+            <Label text="Recent Entries" style="-fx-text-fill:white;-fx-font-size:15px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+            <TableView fx:id="entriesTable" VBox.vgrow="ALWAYS"
+                       style="-fx-background-color:#0D1525;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:10;">
+                <columns>
+                    <TableColumn fx:id="colPlate" text="Plate"    prefWidth="130"/>
+                    <TableColumn fx:id="colOwner" text="Owner"    prefWidth="120"/>
+                    <TableColumn fx:id="colSlot"  text="Slot"     prefWidth="70"/>
+                    <TableColumn fx:id="colType"  text="Type"     prefWidth="70"/>
+                    <TableColumn fx:id="colTime"  text="Entry Time" prefWidth="150"/>
+                </columns>
+            </TableView>
+        </VBox>
+    </HBox>
+</VBox>
+
+========== D:\parksmart\parksmart\src\main\resources\com\parksmart\fxml\exit.fxml ==========
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.parksmart.controller.VehicleExitController"
+      spacing="0" styleClass="root-pane">
+
+    <HBox style="-fx-padding: 18 24 14 24; -fx-background-color: #0A0F1A;
+                 -fx-border-color: #FF2244; -fx-border-width: 0 0 1 0;" alignment="CENTER_LEFT">
+        <Label text="[ VEHICLE EXIT ]"
+               style="-fx-text-fill: #FF2244; -fx-font-size: 18px; -fx-font-weight: bold; -fx-font-family: monospace;"/>
+    </HBox>
+
+    <HBox spacing="20" style="-fx-padding: 20 24 24 24;" VBox.vgrow="ALWAYS">
+
+        <!-- LEFT: Parked Vehicles -->
+        <VBox spacing="10" prefWidth="400">
+            <Label text="Currently Parked"
+                   style="-fx-text-fill: white; -fx-font-size: 15px; -fx-font-weight: bold; -fx-font-family: monospace;"/>
+            <Label text="Click a vehicle to generate bill"
+                   style="-fx-text-fill: #64748b; -fx-font-size: 11px; -fx-font-family: monospace;"/>
+            <TableView fx:id="parkedTable" VBox.vgrow="ALWAYS"
+                       style="-fx-background-color: #0D1525; -fx-border-color: #1E3A5F;
+                              -fx-border-width: 1; -fx-background-radius: 10;">
+                <columns>
+                    <TableColumn fx:id="colPlate"    text="Plate"    prefWidth="110"/>
+                    <TableColumn fx:id="colOwner"    text="Owner"    prefWidth="110"/>
+                    <TableColumn fx:id="colSlot"     text="Slot"     prefWidth="70"/>
+                    <TableColumn fx:id="colDuration" text="Duration" prefWidth="90"/>
+                </columns>
+            </TableView>
+        </VBox>
+
+        <!-- RIGHT: Bill + Receipt -->
+        <VBox spacing="14" HBox.hgrow="ALWAYS">
+
+            <VBox fx:id="billPane" spacing="10"
+                  style="-fx-background-color: #0D1525; -fx-background-radius: 12;
+                         -fx-border-color: #FF2244; -fx-border-radius: 12;
+                         -fx-border-width: 1; -fx-padding: 22;
+                         -fx-effect: dropshadow(gaussian,#FF2244,10,0.3,0,0);"
+                  visible="false" managed="false">
+                <Label text="[ BILLING DETAILS ]"
+                       style="-fx-text-fill: #FF2244; -fx-font-size: 13px; -fx-font-weight: bold; -fx-font-family: monospace;"/>
+
+                <HBox><Label text="Vehicle  : " style="-fx-text-fill: #64748b; -fx-min-width: 100; -fx-font-family: monospace;"/>
+                      <Label fx:id="billPlate"  style="-fx-text-fill: white; -fx-font-family: monospace;"/></HBox>
+                <HBox><Label text="Owner    : " style="-fx-text-fill: #64748b; -fx-min-width: 100; -fx-font-family: monospace;"/>
+                      <Label fx:id="billOwner"  style="-fx-text-fill: white; -fx-font-family: monospace;"/></HBox>
+                <HBox><Label text="Slot     : " style="-fx-text-fill: #64748b; -fx-min-width: 100; -fx-font-family: monospace;"/>
+                      <Label fx:id="billSlot"   style="-fx-text-fill: white; -fx-font-family: monospace;"/></HBox>
+                <HBox><Label text="Entry    : " style="-fx-text-fill: #64748b; -fx-min-width: 100; -fx-font-family: monospace;"/>
+                      <Label fx:id="billEntry"  style="-fx-text-fill: white; -fx-font-family: monospace;"/></HBox>
+                <HBox><Label text="Duration : " style="-fx-text-fill: #64748b; -fx-min-width: 100; -fx-font-family: monospace;"/>
+                      <Label fx:id="billDuration" style="-fx-text-fill: #FFB800; -fx-font-weight: bold; -fx-font-family: monospace;"/></HBox>
+                <HBox><Label text="Amount   : " style="-fx-text-fill: #64748b; -fx-min-width: 100; -fx-font-family: monospace;"/>
+                      <Label fx:id="billTotal" style="-fx-text-fill: #00FF88; -fx-font-size: 20px; -fx-font-weight: bold; -fx-font-family: monospace;"/></HBox>
+
+                <HBox alignment="CENTER_LEFT" spacing="10">
+                    <Label text="Discount : " style="-fx-text-fill: #64748b; -fx-min-width: 100; -fx-font-family: monospace;"/>
+                    <TextField fx:id="discountField" promptText="0" prefWidth="70"
+                               styleClass="input-field" style="-fx-font-size: 13px; -fx-padding: 8 10 8 10;"/>
+                    <Label text="percent" style="-fx-text-fill: #64748b; -fx-font-family: monospace;"/>
+                </HBox>
+
+                <Button text="CONFIRM EXIT - GENERATE RECEIPT"
+                        styleClass="touch-btn-red" maxWidth="Infinity" onAction="#handleExit"/>
+            </VBox>
+
+            <Label fx:id="exitErrorLabel" text=""
+                   style="-fx-text-fill: #00FF88; -fx-font-size: 12px; -fx-font-family: monospace;"/>
+
+            <VBox spacing="8" VBox.vgrow="ALWAYS">
+                <Label text="Receipt"
+                       style="-fx-text-fill: white; -fx-font-size: 15px; -fx-font-weight: bold; -fx-font-family: monospace;"/>
+                <TextArea fx:id="receiptArea" VBox.vgrow="ALWAYS" editable="false"
+                          style="-fx-background-color: #080C14; -fx-text-fill: #00FF88;
+                                 -fx-font-family: monospace; -fx-font-size: 13px;
+                                 -fx-border-color: #1E3A5F; -fx-border-width: 1;
+                                 -fx-background-radius: 8; -fx-border-radius: 8;"
+                          promptText="Receipt will appear here after exit..."/>
+            </VBox>
+        </VBox>
+    </HBox>
+</VBox>
+
+========== D:\parksmart\parksmart\src\main\resources\com\parksmart\fxml\grid3d.fxml ==========
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.parksmart.controller.ParkingGrid3DController"
+      spacing="0" styleClass="root-pane">
+
+    <!-- TOP HUD BAR -->
+    <HBox alignment="CENTER_LEFT" spacing="16"
+          style="-fx-background-color: #0A0F1A; -fx-border-color: #00C2FF; -fx-border-width: 0 0 1 0; -fx-padding: 10 20 10 20;">
+        <Label text="[ PARKING GRID 3D ]"
+               style="-fx-text-fill: #00C2FF; -fx-font-size: 17px; -fx-font-weight: bold; -fx-font-family: monospace;"/>
+        <Label text="CLICK SLOT TO BOOK"
+               style="-fx-text-fill: #334155; -fx-font-size: 11px; -fx-font-family: monospace;"/>
+        <HBox HBox.hgrow="ALWAYS"/>
+
+        <!-- VEHICLE TYPE FILTER -->
+        <Label text="SHOW:" style="-fx-text-fill: #64748b; -fx-font-family: monospace; -fx-font-size: 11px;"/>
+        <Button fx:id="btnAll" text="ALL" onAction="#filterAll"
+                style="-fx-background-color: #00C2FF; -fx-text-fill: #0A0F1A; -fx-font-family: monospace; -fx-font-size: 11px; -fx-font-weight: bold; -fx-cursor: hand; -fx-background-radius: 4; -fx-padding: 5 12 5 12;"/>
+        <Button fx:id="btnTwo" text="2-WHEELER" onAction="#filterTwoWheeler"
+                style="-fx-background-color: #0D1525; -fx-text-fill: #00FF88; -fx-border-color: #00FF88; -fx-border-width: 1; -fx-font-family: monospace; -fx-font-size: 11px; -fx-cursor: hand; -fx-background-radius: 4; -fx-border-radius: 4; -fx-padding: 5 12 5 12;"/>
+        <Button fx:id="btnFour" text="4-WHEELER" onAction="#filterFourWheeler"
+                style="-fx-background-color: #0D1525; -fx-text-fill: #00C2FF; -fx-border-color: #00C2FF; -fx-border-width: 1; -fx-font-family: monospace; -fx-font-size: 11px; -fx-cursor: hand; -fx-background-radius: 4; -fx-border-radius: 4; -fx-padding: 5 12 5 12;"/>
+
+        <Label text="|" style="-fx-text-fill: #1e2d47;"/>
+
+        <!-- FLOOR + BUTTONS -->
+        <ComboBox fx:id="floorSelector"
+                  style="-fx-background-color: #0D1525; -fx-text-fill: #00C2FF; -fx-border-color: #00C2FF; -fx-border-width: 1; -fx-font-family: monospace; -fx-min-width: 100px;"/>
+        <Button text="RESET" onAction="#resetCamera"
+                style="-fx-background-color: #0D1525; -fx-text-fill: #00C2FF; -fx-border-color: #00C2FF; -fx-border-width: 1; -fx-font-family: monospace; -fx-font-size: 11px; -fx-cursor: hand; -fx-background-radius: 4; -fx-border-radius: 4; -fx-padding: 5 10 5 10;"/>
+        <Button text="REFRESH" onAction="#handleRefresh"
+                style="-fx-background-color: #0D1525; -fx-text-fill: #00FF88; -fx-border-color: #00FF88; -fx-border-width: 1; -fx-font-family: monospace; -fx-font-size: 11px; -fx-cursor: hand; -fx-background-radius: 4; -fx-border-radius: 4; -fx-padding: 5 10 5 10;"/>
+    </HBox>
+
+    <!-- STATUS BAR -->
+    <Label fx:id="statusLabel" text=""
+           style="-fx-text-fill: #FFB800; -fx-font-size: 11px; -fx-font-family: monospace; -fx-padding: 4 20 4 20; -fx-background-color: #080C14; -fx-min-height: 24px;"/>
+
+    <!-- 3D CANVAS AREA -->
+    <StackPane fx:id="container" VBox.vgrow="ALWAYS"
+               style="-fx-background-color: #05080F;"/>
+
+    <!-- BOTTOM HUD BAR -->
+    <HBox alignment="CENTER" spacing="40"
+          style="-fx-background-color: #0A0F1A; -fx-border-color: #00C2FF; -fx-border-width: 1 0 0 0; -fx-padding: 8 20 8 20;">
+        <HBox spacing="8" alignment="CENTER_LEFT">
+            <Label style="-fx-background-color: #00FF88; -fx-min-width: 10; -fx-min-height: 10; -fx-background-radius: 2;"/>
+            <Label text="AVAILABLE" style="-fx-text-fill: #64748b; -fx-font-family: monospace; -fx-font-size: 11px;"/>
+            <Label fx:id="availableLabel" text="0" style="-fx-text-fill: #00FF88; -fx-font-weight: bold; -fx-font-family: monospace; -fx-font-size: 15px;"/>
+        </HBox>
+        <HBox spacing="8" alignment="CENTER_LEFT">
+            <Label style="-fx-background-color: #FF2244; -fx-min-width: 10; -fx-min-height: 10; -fx-background-radius: 2;"/>
+            <Label text="OCCUPIED" style="-fx-text-fill: #64748b; -fx-font-family: monospace; -fx-font-size: 11px;"/>
+            <Label fx:id="occupiedLabel" text="0" style="-fx-text-fill: #FF2244; -fx-font-weight: bold; -fx-font-family: monospace; -fx-font-size: 15px;"/>
+        </HBox>
+        <HBox spacing="8" alignment="CENTER_LEFT">
+            <Label style="-fx-background-color: #FFB800; -fx-min-width: 10; -fx-min-height: 10; -fx-background-radius: 2;"/>
+            <Label text="LOCKING" style="-fx-text-fill: #64748b; -fx-font-family: monospace; -fx-font-size: 11px;"/>
+            <Label fx:id="lockingLabel" text="0" style="-fx-text-fill: #FFB800; -fx-font-weight: bold; -fx-font-family: monospace; -fx-font-size: 15px;"/>
+        </HBox>
+        <HBox HBox.hgrow="ALWAYS"/>
+        <Label fx:id="filterLabel" text="SHOWING: ALL SLOTS"
+               style="-fx-text-fill: #00C2FF; -fx-font-family: monospace; -fx-font-size: 11px;"/>
+    </HBox>
+</VBox>
+
+========== D:\parksmart\parksmart\src\main\resources\com\parksmart\fxml\home.fxml ==========
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+
+<ScrollPane xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.parksmart.controller.HomeController"
+      fitToWidth="true" style="-fx-background-color:#0a0d14;-fx-background:#0a0d14;">
+<VBox spacing="24" style="-fx-padding:32;-fx-background-color:#0a0d14;">
+
+    <Label fx:id="welcomeLabel" text="Welcome!"
+           style="-fx-text-fill:white;-fx-font-size:24px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+
+    <HBox spacing="14">
+        <VBox styleClass="stat-card-green" alignment="CENTER" spacing="6" HBox.hgrow="ALWAYS" prefHeight="120">
+            <Label fx:id="availableCount" text="0" styleClass="stat-num-green"/>
+            <Label text="AVAILABLE" style="-fx-text-fill:#00FF88;-fx-font-size:11px;-fx-font-family:monospace;"/>
+        </VBox>
+        <VBox styleClass="stat-card-red" alignment="CENTER" spacing="6" HBox.hgrow="ALWAYS" prefHeight="120">
+            <Label fx:id="occupiedCount" text="0" styleClass="stat-num-red"/>
+            <Label text="OCCUPIED" style="-fx-text-fill:#FF2244;-fx-font-size:11px;-fx-font-family:monospace;"/>
+        </VBox>
+        <VBox styleClass="stat-card-blue" alignment="CENTER" spacing="6" HBox.hgrow="ALWAYS" prefHeight="120">
+            <Label fx:id="totalCount" text="0" styleClass="stat-num-blue"/>
+            <Label text="TOTAL SLOTS" style="-fx-text-fill:#00C2FF;-fx-font-size:11px;-fx-font-family:monospace;"/>
+        </VBox>
+        <VBox styleClass="stat-card-purple" alignment="CENTER" spacing="6" HBox.hgrow="ALWAYS" prefHeight="120">
+            <Label fx:id="revenueCount" text="Rs.0" styleClass="stat-num-purple"/>
+            <Label text="TODAY REVENUE" style="-fx-text-fill:#A855F7;-fx-font-size:11px;-fx-font-family:monospace;"/>
+        </VBox>
+    </HBox>
+
+    <VBox styleClass="stat-card" spacing="14"
+          style="-fx-background-color:#0D1525;-fx-border-color:#1E3A5F;-fx-border-radius:12;-fx-background-radius:12;-fx-padding:22;">
+        <Label text="[ QUICK GUIDE ]" style="-fx-text-fill:#00C2FF;-fx-font-size:13px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+        <Label text="1.  Parking Grid  - View 3D slots, click green to lock" style="-fx-text-fill:#94a3b8;-fx-font-family:monospace;"/>
+        <Label text="2.  Vehicle Entry - Register vehicle and confirm booking" style="-fx-text-fill:#94a3b8;-fx-font-family:monospace;"/>
+        <Label text="3.  Vehicle Exit  - Select vehicle, view bill, generate receipt" style="-fx-text-fill:#94a3b8;-fx-font-family:monospace;"/>
+        <Label text="4.  Analytics     - Revenue charts and slot utilization" style="-fx-text-fill:#94a3b8;-fx-font-family:monospace;"/>
+    </VBox>
+</VBox>
+</ScrollPane>
+
+========== D:\parksmart\parksmart\src\main\resources\com\parksmart\fxml\kiosk_exit.fxml ==========
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.*?>
+
+<StackPane xmlns:fx="http://javafx.com/fxml"
+           fx:controller="com.parksmart.controller.KioskExitController"
+           fx:id="rootPane" style="-fx-background-color:#05080F;">
+
+    <!-- STEP 1: Enter Ticket ID -->
+    <VBox fx:id="step1" spacing="0">
+        <HBox style="-fx-background-color:#0A0F1A;-fx-border-color:#FF2244;-fx-border-width:0 0 1 0;-fx-padding:10 20 10 20;" alignment="CENTER_LEFT" spacing="14">
+            <Button text="BACK" onAction="#handleBack" style="-fx-background-color:transparent;-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-cursor:hand;-fx-border-color:#334155;-fx-border-width:1;-fx-background-radius:4;-fx-border-radius:4;-fx-padding:5 14 5 14;"/>
+            <Label text="[ 1 / 3 ]" style="-fx-text-fill:#334155;-fx-font-family:monospace;-fx-font-size:12px;"/>
+            <Label text="EXIT PARKING - ENTER TICKET ID" style="-fx-text-fill:#FF2244;-fx-font-size:16px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-effect:dropshadow(gaussian,#FF2244,8,0.4,0,0);"/>
+        </HBox>
+        <StackPane VBox.vgrow="ALWAYS" alignment="CENTER" style="-fx-background-color:#05080F;">
+            <VBox spacing="22" alignment="CENTER" style="-fx-max-width:420;">
+                <Label text="ENTER YOUR TICKET NUMBER" style="-fx-text-fill:#94a3b8;-fx-font-family:monospace;-fx-font-size:13px;"/>
+                <VBox alignment="CENTER" spacing="4" style="-fx-background-color:#0D1525;-fx-background-radius:12;-fx-border-color:#FF2244;-fx-border-radius:12;-fx-border-width:1;-fx-padding:20 30 20 30;-fx-effect:dropshadow(gaussian,#FF2244,10,0.3,0,0);">
+                    <Label text="TKT -" style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-font-size:13px;"/>
+                    <Label fx:id="ticketDisplay" text="_ _ _ _ _" style="-fx-text-fill:#FF2244;-fx-font-size:40px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-effect:dropshadow(gaussian,#FF2244,8,0.4,0,0);"/>
+                </VBox>
+                <VBox spacing="10">
+                    <HBox spacing="10" alignment="CENTER">
+                        <Button text="1" onAction="#num1" style="-fx-min-width:110;-fx-min-height:72;-fx-font-size:26px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="2" onAction="#num2" style="-fx-min-width:110;-fx-min-height:72;-fx-font-size:26px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="3" onAction="#num3" style="-fx-min-width:110;-fx-min-height:72;-fx-font-size:26px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                    </HBox>
+                    <HBox spacing="10" alignment="CENTER">
+                        <Button text="4" onAction="#num4" style="-fx-min-width:110;-fx-min-height:72;-fx-font-size:26px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="5" onAction="#num5" style="-fx-min-width:110;-fx-min-height:72;-fx-font-size:26px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="6" onAction="#num6" style="-fx-min-width:110;-fx-min-height:72;-fx-font-size:26px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                    </HBox>
+                    <HBox spacing="10" alignment="CENTER">
+                        <Button text="7" onAction="#num7" style="-fx-min-width:110;-fx-min-height:72;-fx-font-size:26px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="8" onAction="#num8" style="-fx-min-width:110;-fx-min-height:72;-fx-font-size:26px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="9" onAction="#num9" style="-fx-min-width:110;-fx-min-height:72;-fx-font-size:26px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                    </HBox>
+                    <HBox spacing="10" alignment="CENTER">
+                        <Button text="CLR" onAction="#numClear" style="-fx-min-width:110;-fx-min-height:72;-fx-font-size:18px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#1A0A0A;-fx-text-fill:#FF2244;-fx-border-color:#FF2244;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="0"   onAction="#num0"    style="-fx-min-width:110;-fx-min-height:72;-fx-font-size:26px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                        <Button text="DEL" onAction="#numDel"  style="-fx-min-width:110;-fx-min-height:72;-fx-font-size:18px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#1A0A0A;-fx-text-fill:#FF2244;-fx-border-color:#FF2244;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;-fx-cursor:hand;"/>
+                    </HBox>
+                </VBox>
+                <Label fx:id="exitStatus" text="" style="-fx-text-fill:#FF2244;-fx-font-family:monospace;-fx-font-size:12px;"/>
+                <Button text="FIND MY TICKET" onAction="#handleFind" maxWidth="Infinity"
+                        style="-fx-background-color:#2D0010;-fx-text-fill:#FF2244;-fx-font-size:20px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-radius:12;-fx-border-color:#FF2244;-fx-border-radius:12;-fx-border-width:2;-fx-cursor:hand;-fx-min-height:62;-fx-effect:dropshadow(gaussian,#FF2244,14,0.5,0,0);"/>
+            </VBox>
+        </StackPane>
+    </VBox>
+
+    <!-- STEP 2: Bill -->
+    <VBox fx:id="step2" visible="false" managed="false" spacing="0">
+        <HBox style="-fx-background-color:#0A0F1A;-fx-border-color:#FF2244;-fx-border-width:0 0 1 0;-fx-padding:10 20 10 20;" alignment="CENTER_LEFT" spacing="14">
+            <Button text="BACK" onAction="#handleStep2Back" style="-fx-background-color:transparent;-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-cursor:hand;-fx-border-color:#334155;-fx-border-width:1;-fx-background-radius:4;-fx-border-radius:4;-fx-padding:5 14 5 14;"/>
+            <Label text="[ 2 / 3 ]" style="-fx-text-fill:#334155;-fx-font-family:monospace;-fx-font-size:12px;"/>
+            <Label text="YOUR PARKING BILL" style="-fx-text-fill:#FF2244;-fx-font-size:16px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+        </HBox>
+        <StackPane VBox.vgrow="ALWAYS" alignment="CENTER" style="-fx-background-color:#05080F;">
+            <VBox spacing="18" alignment="CENTER" style="-fx-max-width:500;-fx-padding:40;">
+                <VBox spacing="14" style="-fx-background-color:#0D1525;-fx-background-radius:16;-fx-border-color:#FF2244;-fx-border-radius:16;-fx-border-width:1;-fx-padding:28;-fx-effect:dropshadow(gaussian,#FF2244,12,0.3,0,0);">
+                    <Label text="[ BILLING DETAILS ]" style="-fx-text-fill:#FF2244;-fx-font-family:monospace;-fx-font-size:14px;-fx-font-weight:bold;"/>
+                    <HBox><Label text="Vehicle  : " style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-min-width:120;"/><Label fx:id="billPlate"    style="-fx-text-fill:white;-fx-font-family:monospace;-fx-font-size:15px;"/></HBox>
+                    <HBox><Label text="Owner    : " style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-min-width:120;"/><Label fx:id="billOwner"    style="-fx-text-fill:white;-fx-font-family:monospace;-fx-font-size:15px;"/></HBox>
+                    <HBox><Label text="Slot     : " style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-min-width:120;"/><Label fx:id="billSlot"     style="-fx-text-fill:#00C2FF;-fx-font-family:monospace;-fx-font-size:15px;"/></HBox>
+                    <HBox><Label text="Entry    : " style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-min-width:120;"/><Label fx:id="billEntry"    style="-fx-text-fill:white;-fx-font-family:monospace;"/></HBox>
+                    <HBox><Label text="Duration : " style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-min-width:120;"/><Label fx:id="billDuration" style="-fx-text-fill:#FFB800;-fx-font-weight:bold;-fx-font-family:monospace;-fx-font-size:15px;"/></HBox>
+                    <HBox><Label text="TOTAL    : " style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-min-width:120;"/><Label fx:id="billTotal"    style="-fx-text-fill:#00FF88;-fx-font-size:28px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-effect:dropshadow(gaussian,#00FF88,8,0.4,0,0);"/></HBox>
+                </VBox>
+                <Button text="MARK AS PAID - GENERATE RECEIPT" onAction="#handlePay" maxWidth="Infinity"
+                        style="-fx-background-color:#003320;-fx-text-fill:#00FF88;-fx-font-size:18px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-radius:12;-fx-border-color:#00FF88;-fx-border-radius:12;-fx-border-width:2;-fx-cursor:hand;-fx-min-height:62;-fx-effect:dropshadow(gaussian,#00FF88,16,0.5,0,0);"/>
+            </VBox>
+        </StackPane>
+    </VBox>
+
+    <!-- STEP 3: Receipt -->
+    <VBox fx:id="step3" visible="false" managed="false" spacing="0">
+        <HBox style="-fx-background-color:#0A0F1A;-fx-border-color:#00FF88;-fx-border-width:0 0 1 0;-fx-padding:10 20 10 20;" alignment="CENTER_LEFT" spacing="14">
+            <Label text="PAYMENT COMPLETE - THANK YOU!" style="-fx-text-fill:#00FF88;-fx-font-size:16px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-effect:dropshadow(gaussian,#00FF88,8,0.5,0,0);"/>
+            <HBox HBox.hgrow="ALWAYS"/>
+            <Label fx:id="cdLabel" text="" style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-font-size:12px;"/>
+        </HBox>
+        <StackPane VBox.vgrow="ALWAYS" alignment="CENTER" style="-fx-background-color:#05080F;">
+            <HBox spacing="40" alignment="CENTER" style="-fx-padding:30;">
+                <VBox alignment="CENTER" spacing="14" style="-fx-background-color:#0D1525;-fx-background-radius:18;-fx-border-color:#00FF88;-fx-border-radius:18;-fx-border-width:1;-fx-padding:28;-fx-effect:dropshadow(gaussian,#00FF88,16,0.4,0,0);">
+                    <Label text="RECEIPT QR" style="-fx-text-fill:#00FF88;-fx-font-family:monospace;-fx-font-size:13px;-fx-font-weight:bold;"/>
+                    <ImageView fx:id="receiptQR" fitWidth="200" fitHeight="200" preserveRatio="true"/>
+                    <Label text="Scan for digital receipt" style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-font-size:11px;"/>
+                </VBox>
+                <VBox spacing="10" style="-fx-background-color:#0D1525;-fx-background-radius:18;-fx-border-color:#1E3A5F;-fx-border-radius:18;-fx-border-width:1;-fx-padding:28;-fx-min-width:340;">
+                    <TextArea fx:id="receiptArea" editable="false" prefHeight="280"
+                              style="-fx-background-color:#080C14;-fx-text-fill:#00FF88;-fx-font-family:monospace;-fx-font-size:12px;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-background-radius:8;-fx-border-radius:8;"/>
+                    <Button text="DONE - GO HOME" onAction="#handleDone" maxWidth="Infinity"
+                            style="-fx-background-color:#003320;-fx-text-fill:#00FF88;-fx-font-size:16px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-radius:10;-fx-border-color:#00FF88;-fx-border-radius:10;-fx-border-width:2;-fx-cursor:hand;-fx-min-height:52;-fx-effect:dropshadow(gaussian,#00FF88,12,0.4,0,0);"/>
+                </VBox>
+            </HBox>
+        </StackPane>
+    </VBox>
+</StackPane>
+
+========== D:\parksmart\parksmart\src\main\resources\com\parksmart\fxml\kiosk_park.fxml ==========
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.*?>
+
+<StackPane xmlns:fx="http://javafx.com/fxml"
+           fx:controller="com.parksmart.controller.KioskParkController"
+           fx:id="rootPane"
+           style="-fx-background-color:#05080F;">
+
+  <VBox fx:id="step1" fillWidth="true">
+    <HBox alignment="CENTER_LEFT" spacing="8" minHeight="48" maxHeight="48" prefHeight="48"
+          style="-fx-background-color:#0A0F1A;-fx-border-color:#00C2FF;-fx-border-width:0 0 2 0;-fx-padding:0 12 0 12;">
+      <Button text="BACK" onAction="#handleBack" style="-fx-background-color:#0D1525;-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-font-size:11px;-fx-cursor:hand;-fx-border-color:#334155;-fx-border-width:1;-fx-background-radius:4;-fx-border-radius:4;-fx-padding:4 10 4 10;"/>
+      <Label text="1/3" style="-fx-text-fill:#334155;-fx-font-family:monospace;-fx-font-size:11px;"/>
+      <Label text="SELECT SLOT" style="-fx-text-fill:#00C2FF;-fx-font-size:14px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+      <Pane HBox.hgrow="ALWAYS"/>
+      <Button fx:id="btnAll"  text="ALL"        onAction="#filterAll"  style="-fx-background-color:#00C2FF;-fx-text-fill:#0A0F1A;-fx-font-family:monospace;-fx-font-size:11px;-fx-font-weight:bold;-fx-cursor:hand;-fx-background-radius:4;-fx-padding:4 10 4 10;"/>
+      <Button fx:id="btnTwo"  text="2-WHEELER"  onAction="#filterTwo"  style="-fx-background-color:#0D1525;-fx-text-fill:#00FF88;-fx-border-color:#00FF88;-fx-border-width:1;-fx-font-family:monospace;-fx-font-size:11px;-fx-cursor:hand;-fx-background-radius:4;-fx-border-radius:4;-fx-padding:4 10 4 10;"/>
+      <Button fx:id="btnFour" text="4-WHEELER"  onAction="#filterFour" style="-fx-background-color:#0D1525;-fx-text-fill:#00C2FF;-fx-border-color:#00C2FF;-fx-border-width:1;-fx-font-family:monospace;-fx-font-size:11px;-fx-cursor:hand;-fx-background-radius:4;-fx-border-radius:4;-fx-padding:4 10 4 10;"/>
+      <ComboBox fx:id="floorBox" style="-fx-background-color:#0D1525;-fx-border-color:#1E3A5F;-fx-border-width:1;-fx-font-family:monospace;-fx-font-size:11px;-fx-min-width:80px;"/>
+    </HBox>
+    <Label fx:id="step1Status" text="Tap a GREEN slot to select it" minHeight="24" maxHeight="24"
+           style="-fx-text-fill:#FFB800;-fx-font-family:monospace;-fx-font-size:11px;-fx-padding:0 12 0 12;-fx-background-color:#070B10;"/>
+    <StackPane fx:id="gridContainer" VBox.vgrow="ALWAYS" style="-fx-background-color:#05080F;"/>
+    <HBox fx:id="step1NextBar" visible="false" managed="false"
+          alignment="CENTER_RIGHT" spacing="12" minHeight="56" maxHeight="56"
+          style="-fx-background-color:#0A0F1A;-fx-border-color:#00FF88;-fx-border-width:2 0 0 0;-fx-padding:0 16 0 16;">
+      <Label fx:id="selectedSlotInfo" text="" style="-fx-text-fill:#00FF88;-fx-font-family:monospace;-fx-font-size:13px;-fx-font-weight:bold;"/>
+      <Pane HBox.hgrow="ALWAYS"/>
+      <Button text="NEXT  -  ENTER DETAILS" onAction="#handleStep1Next"
+              style="-fx-background-color:#003320;-fx-text-fill:#00FF88;-fx-font-size:15px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-radius:8;-fx-border-color:#00FF88;-fx-border-radius:8;-fx-border-width:2;-fx-cursor:hand;-fx-padding:10 24 10 24;-fx-effect:dropshadow(gaussian,#00FF88,12,0.5,0,0);"/>
+    </HBox>
+  </VBox>
+
+  <VBox fx:id="step2" visible="false" managed="false" fillWidth="true">
+    <HBox alignment="CENTER_LEFT" spacing="8" minHeight="48" maxHeight="48"
+          style="-fx-background-color:#0A0F1A;-fx-border-color:#00C2FF;-fx-border-width:0 0 2 0;-fx-padding:0 12 0 12;">
+      <Button text="BACK" onAction="#handleStep2Back" style="-fx-background-color:#0D1525;-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-font-size:11px;-fx-cursor:hand;-fx-border-color:#334155;-fx-border-width:1;-fx-background-radius:4;-fx-border-radius:4;-fx-padding:4 10 4 10;"/>
+      <Label text="2/3" style="-fx-text-fill:#334155;-fx-font-family:monospace;-fx-font-size:11px;"/>
+      <Label text="ENTER YOUR DETAILS" style="-fx-text-fill:#00C2FF;-fx-font-size:14px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+    </HBox>
+    <StackPane VBox.vgrow="ALWAYS" alignment="CENTER" style="-fx-background-color:#05080F;">
+      <VBox spacing="14" alignment="CENTER" maxWidth="460" style="-fx-padding:20;">
+        <VBox alignment="CENTER" spacing="4" style="-fx-background-color:#0D1525;-fx-background-radius:10;-fx-border-color:#00C2FF;-fx-border-radius:10;-fx-border-width:1;-fx-padding:12;">
+          <Label text="SELECTED SLOT" style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-font-size:10px;"/>
+          <Label fx:id="slotNumLabel" text="" style="-fx-text-fill:#00C2FF;-fx-font-size:28px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+          <Label fx:id="slotTypeLabel" text="" style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-font-size:11px;"/>
+        </VBox>
+        <VBox spacing="5">
+          <Label text="FULL NAME" style="-fx-text-fill:#94a3b8;-fx-font-size:11px;-fx-font-family:monospace;"/>
+          <TextField fx:id="nameField" promptText="Enter your full name" style="-fx-background-color:#0D1525;-fx-text-fill:white;-fx-prompt-text-fill:#334155;-fx-border-color:#1E3A5F;-fx-border-radius:8;-fx-background-radius:8;-fx-border-width:1;-fx-padding:12;-fx-font-size:15px;"/>
+        </VBox>
+        <VBox spacing="5">
+          <Label text="LICENSE PLATE" style="-fx-text-fill:#94a3b8;-fx-font-size:11px;-fx-font-family:monospace;"/>
+          <TextField fx:id="plateField" promptText="e.g. MH12AB1234" style="-fx-background-color:#0D1525;-fx-text-fill:white;-fx-prompt-text-fill:#334155;-fx-border-color:#1E3A5F;-fx-border-radius:8;-fx-background-radius:8;-fx-border-width:1;-fx-padding:12;-fx-font-size:15px;"/>
+        </VBox>
+        <Label fx:id="step2Error" text="" style="-fx-text-fill:#FF2244;-fx-font-family:monospace;-fx-font-size:12px;"/>
+        <Button text="CONFIRM BOOKING" onAction="#handleConfirmBooking" maxWidth="Infinity"
+                style="-fx-background-color:#003320;-fx-text-fill:#00FF88;-fx-font-size:16px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-radius:10;-fx-border-color:#00FF88;-fx-border-radius:10;-fx-border-width:2;-fx-cursor:hand;-fx-min-height:52;-fx-effect:dropshadow(gaussian,#00FF88,12,0.5,0,0);"/>
+      </VBox>
+    </StackPane>
+  </VBox>
+
+  <VBox fx:id="step3" visible="false" managed="false" fillWidth="true">
+    <HBox alignment="CENTER_LEFT" spacing="8" minHeight="48" maxHeight="48"
+          style="-fx-background-color:#0A0F1A;-fx-border-color:#00FF88;-fx-border-width:0 0 2 0;-fx-padding:0 12 0 12;">
+      <Label text="3/3" style="-fx-text-fill:#334155;-fx-font-family:monospace;-fx-font-size:11px;"/>
+      <Label text="BOOKING CONFIRMED!" style="-fx-text-fill:#00FF88;-fx-font-size:14px;-fx-font-weight:bold;-fx-font-family:monospace;"/>
+      <Pane HBox.hgrow="ALWAYS"/>
+      <Label fx:id="cdLabel" text="" style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-font-size:11px;"/>
+    </HBox>
+    <StackPane VBox.vgrow="ALWAYS" alignment="CENTER" style="-fx-background-color:#05080F;">
+      <HBox spacing="28" alignment="CENTER" style="-fx-padding:20;">
+        <VBox alignment="CENTER" spacing="10" style="-fx-background-color:#0D1525;-fx-background-radius:14;-fx-border-color:#00FF88;-fx-border-radius:14;-fx-border-width:1;-fx-padding:20;">
+          <Label text="YOUR TICKET QR" style="-fx-text-fill:#00FF88;-fx-font-family:monospace;-fx-font-size:11px;-fx-font-weight:bold;"/>
+          <ImageView fx:id="qrView" fitWidth="190" fitHeight="190" preserveRatio="true"/>
+          <Label text="Show this at exit" style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-font-size:10px;"/>
+        </VBox>
+        <VBox spacing="10" HBox.hgrow="ALWAYS" maxWidth="360" style="-fx-background-color:#0D1525;-fx-background-radius:14;-fx-border-color:#00C2FF;-fx-border-radius:14;-fx-border-width:1;-fx-padding:20;">
+          <Label text="TICKET DETAILS" style="-fx-text-fill:#00C2FF;-fx-font-family:monospace;-fx-font-size:11px;-fx-font-weight:bold;"/>
+          <HBox><Label text="Ticket : " style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-min-width:90;-fx-font-size:12px;"/><Label fx:id="tktId"    style="-fx-text-fill:#00FF88;-fx-font-size:18px;-fx-font-weight:bold;-fx-font-family:monospace;"/></HBox>
+          <HBox><Label text="Name   : " style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-min-width:90;-fx-font-size:12px;"/><Label fx:id="tktName"  style="-fx-text-fill:white;-fx-font-family:monospace;-fx-font-size:12px;"/></HBox>
+          <HBox><Label text="Plate  : " style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-min-width:90;-fx-font-size:12px;"/><Label fx:id="tktPlate" style="-fx-text-fill:white;-fx-font-family:monospace;-fx-font-size:12px;"/></HBox>
+          <HBox><Label text="Slot   : " style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-min-width:90;-fx-font-size:12px;"/><Label fx:id="tktSlot"  style="-fx-text-fill:#00C2FF;-fx-font-weight:bold;-fx-font-family:monospace;-fx-font-size:12px;"/></HBox>
+          <HBox><Label text="Type   : " style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-min-width:90;-fx-font-size:12px;"/><Label fx:id="tktType"  style="-fx-text-fill:white;-fx-font-family:monospace;-fx-font-size:12px;"/></HBox>
+          <HBox><Label text="Entry  : " style="-fx-text-fill:#64748b;-fx-font-family:monospace;-fx-min-width:90;-fx-font-size:12px;"/><Label fx:id="tktTime"  style="-fx-text-fill:#FFB800;-fx-font-family:monospace;-fx-font-size:12px;"/></HBox>
+          <Button text="DONE - GO HOME" onAction="#handleDone" maxWidth="Infinity" style="-fx-background-color:#003320;-fx-text-fill:#00FF88;-fx-font-size:14px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-radius:8;-fx-border-color:#00FF88;-fx-border-radius:8;-fx-border-width:2;-fx-cursor:hand;-fx-min-height:44;"/>
+        </VBox>
+      </HBox>
+    </StackPane>
+  </VBox>
+
+</StackPane>
+
+========== D:\parksmart\parksmart\src\main\resources\com\parksmart\fxml\welcome.fxml ==========
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.canvas.*?>
+
+<StackPane xmlns:fx="http://javafx.com/fxml"
+           fx:controller="com.parksmart.controller.KioskWelcomeController"
+           fx:id="rootPane"
+           style="-fx-background-color:#05080F;">
+    <Canvas fx:id="bgCanvas"/>
+    <BorderPane>
+        <center>
+            <VBox alignment="CENTER" spacing="32" style="-fx-padding:40;">
+                <VBox alignment="CENTER" spacing="8" onMouseClicked="#handleLogoClick" style="-fx-cursor:hand;">
+                    <Label text="P"
+                           style="-fx-text-fill:#00C2FF;-fx-font-size:80px;-fx-font-weight:bold;-fx-effect:dropshadow(gaussian,#00C2FF,28,0.8,0,0);"/>
+                    <Label text="ParkSmart"
+                           style="-fx-text-fill:white;-fx-font-size:40px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-effect:dropshadow(gaussian,#00C2FF,12,0.4,0,0);"/>
+                    <Label text="Smart Parking - Simplified"
+                           style="-fx-text-fill:#334155;-fx-font-size:14px;-fx-font-family:monospace;"/>
+                </VBox>
+                <HBox alignment="CENTER" spacing="28">
+                    <Label fx:id="slotsLabel" text="Loading..."
+                           style="-fx-text-fill:#00FF88;-fx-font-size:15px;-fx-font-family:monospace;-fx-background-color:#0A1A0A;-fx-background-radius:22;-fx-border-color:#00FF88;-fx-border-radius:22;-fx-border-width:1;-fx-padding:8 24 8 24;"/>
+                    <Label fx:id="clockLabel" text="00:00:00"
+                           style="-fx-text-fill:#00C2FF;-fx-font-size:15px;-fx-font-family:monospace;-fx-background-color:#0A0F1A;-fx-background-radius:22;-fx-border-color:#00C2FF;-fx-border-radius:22;-fx-border-width:1;-fx-padding:8 24 8 24;"/>
+                </HBox>
+                <HBox alignment="CENTER" spacing="40" style="-fx-padding:0 60 0 60;">
+                    <Button text="PARK MY VEHICLE" onAction="#handlePark" HBox.hgrow="ALWAYS"
+                            style="-fx-max-width:Infinity;-fx-min-height:120;-fx-font-size:24px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#002B18;-fx-text-fill:#00FF88;-fx-background-radius:16;-fx-border-color:#00FF88;-fx-border-radius:16;-fx-border-width:2;-fx-cursor:hand;-fx-effect:dropshadow(gaussian,#00FF88,22,0.6,0,0);"/>
+                    <Button text="EXIT PARKING" onAction="#handleExit" HBox.hgrow="ALWAYS"
+                            style="-fx-max-width:Infinity;-fx-min-height:120;-fx-font-size:24px;-fx-font-weight:bold;-fx-font-family:monospace;-fx-background-color:#2D0010;-fx-text-fill:#FF2244;-fx-background-radius:16;-fx-border-color:#FF2244;-fx-border-radius:16;-fx-border-width:2;-fx-cursor:hand;-fx-effect:dropshadow(gaussian,#FF2244,22,0.6,0,0);"/>
+                </HBox>
+                <Label text="Tap logo 3 times for admin access"
+                       style="-fx-text-fill:#1A2A3A;-fx-font-size:11px;-fx-font-family:monospace;"/>
+            </VBox>
+        </center>
+    </BorderPane>
+</StackPane>
+

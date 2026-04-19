@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.chart.*?>
+
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.snappark.controller.AnalyticsController"
+      spacing="0" styleClass="root-pane">
+
+    <Label text="Revenue Analytics" styleClass="section-title"
+           style="-fx-padding:20 24 12 24;-fx-font-family:monospace;"/>
+
+    <HBox spacing="12" style="-fx-padding:0 24 16 24;">
+        <VBox styleClass="stat-card" alignment="CENTER" spacing="6" HBox.hgrow="ALWAYS" prefHeight="100">
+            <Label fx:id="todayRevenue" text="Rs.0" style="-fx-text-fill:#4ade80;-fx-font-size:24px;-fx-font-weight:bold;"/>
+            <Label text="TODAY" style="-fx-text-fill:#64748b;-fx-font-size:10px;-fx-font-family:monospace;"/>
+        </VBox>
+        <VBox styleClass="stat-card" alignment="CENTER" spacing="6" HBox.hgrow="ALWAYS" prefHeight="100">
+            <Label fx:id="totalRevenue" text="Rs.0" style="-fx-text-fill:#00c2ff;-fx-font-size:24px;-fx-font-weight:bold;"/>
+            <Label text="TOTAL" style="-fx-text-fill:#64748b;-fx-font-size:10px;-fx-font-family:monospace;"/>
+        </VBox>
+        <VBox styleClass="stat-card" alignment="CENTER" spacing="6" HBox.hgrow="ALWAYS" prefHeight="100">
+            <Label fx:id="totalVehicles" text="0" style="-fx-text-fill:#f59e0b;-fx-font-size:24px;-fx-font-weight:bold;"/>
+            <Label text="VEHICLES" style="-fx-text-fill:#64748b;-fx-font-size:10px;-fx-font-family:monospace;"/>
+        </VBox>
+        <VBox styleClass="stat-card" alignment="CENTER" spacing="6" HBox.hgrow="ALWAYS" prefHeight="100">
+            <Label fx:id="avgRevenue" text="Rs.0" style="-fx-text-fill:#a855f7;-fx-font-size:24px;-fx-font-weight:bold;"/>
+            <Label text="AVG/VEHICLE" style="-fx-text-fill:#64748b;-fx-font-size:10px;-fx-font-family:monospace;"/>
+        </VBox>
+    </HBox>
+
+    <HBox spacing="16" style="-fx-padding:0 24 24 24;" VBox.vgrow="ALWAYS">
+        <VBox spacing="8" HBox.hgrow="ALWAYS" VBox.vgrow="ALWAYS">
+            <Label text="Revenue by Vehicle Type" style="-fx-text-fill:#94a3b8;-fx-font-size:12px;"/>
+            <BarChart fx:id="revenueByTypeChart" VBox.vgrow="ALWAYS"
+                      style="-fx-background-color:#111621;-fx-border-color:#1e2d47;-fx-border-width:1;-fx-background-radius:10;-fx-border-radius:10;">
+                <xAxis><CategoryAxis style="-fx-tick-label-fill:#64748b;"/></xAxis>
+                <yAxis><NumberAxis style="-fx-tick-label-fill:#64748b;"/></yAxis>
+            </BarChart>
+        </VBox>
+        <VBox spacing="8" prefWidth="300" VBox.vgrow="ALWAYS">
+            <Label text="Slot Utilization" style="-fx-text-fill:#94a3b8;-fx-font-size:12px;"/>
+            <PieChart fx:id="utilizationChart" VBox.vgrow="ALWAYS"
+                      style="-fx-background-color:#111621;-fx-border-color:#1e2d47;-fx-border-width:1;-fx-background-radius:10;-fx-border-radius:10;"
+                      labelsVisible="true"/>
+        </VBox>
+    </HBox>
+</VBox>
