@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SnapPark — Smart Parking, Reimagined</title>
+    <meta name="description" content="SnapPark is an AI-powered, app-less smart parking system. Scan a QR code, pick your slot, and go. No downloads. No friction. Just park.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🅿️</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        /* ═══════════════════════════════════════════════════════════
+           SNAPPARK LANDING PAGE — Premium Dark Theme
+           ═══════════════════════════════════════════════════════════ */
+        :root {
+            --bg-primary:     #05080F;
+            --bg-card:        #0D1117;
+            --bg-elevated:    #161B22;
+            --accent-cyan:    #00C2FF;
+            --accent-green:   #00FF88;
+            --accent-red:     #FF2244;
+            --accent-amber:   #FFB800;
+            --accent-purple:  #A855F7;
+            --accent-pink:    #FF6B9D;
+            --text-primary:   #E6EDF3;
+            --text-secondary: #8B949E;
+            --text-muted:     #484F58;
+            --border:         #21262D;
+            --radius:         14px;
+            --radius-sm:      8px;
+            --transition:     0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            overflow-x: hidden;
+        }
+
+        /* ─── Animated Background ─── */
+        body::before {
+            content: '';
+            position: fixed;
+            top: -50%; left: -50%;
+            width: 200%; height: 200%;
+            background: 
+                radial-gradient(ellipse at 20% 20%, rgba(0,194,255,0.07) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(168,85,247,0.05) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(0,255,136,0.03) 0%, transparent 40%);
+            pointer-events: none;
+            z-index: 0;
+            animation: bgShift 25s ease-in-out infinite alternate;
+        }
+
+        @keyframes bgShift {
+            0% { transform: translate(0, 0) rotate(0deg); }
+            100% { transform: translate(-5%, -5%) rotate(3deg); }
+        }
+
+        /* ─── Animations ─── */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(40px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes scaleIn {
+            from { transform: scale(0.85); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-12px); }
+        }
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(0,194,255,0.2); }
+            50% { box-shadow: 0 0 40px rgba(0,194,255,0.5); }
+        }
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        @keyframes slideInLeft {
+            from { opacity: 0; transform: translateX(-60px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes slideInRight {
+            from { opacity: 0; transform: translateX(60px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes gridPulse {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 1; }
+        }
+        @keyframes countUp {
+            from { opacity: 0; transform: scale(0.5); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes typewriter {
+            from { width: 0; }
+            to { width: 100%; }
+        }
+        @keyframes blink {
+            0%, 50% { border-color: var(--accent-cyan); }
+            51%, 100% { border-color: transparent; }
+        }
+        @keyframes orbitSlow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .reveal {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .reveal.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* ═══════════════════════════════════
+           NAVBAR
+           ═══════════════════════════════════ */
+        .navbar {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 100;
+            padding: 16px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(5, 8, 15, 0.85);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border-bottom: 1px solid rgba(33, 38, 45, 0.6);
+            transition: all 0.4s ease;
+        }
+
+        .navbar.scrolled {
+            padding: 10px 32px;
+            background: rgba(5, 8, 15, 0.95);
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+        }
+
+        .nav-logo {
+            font-size: 1.6rem;
+        }
+
+        .nav-name {
+            font-size: 1.3rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 32px;
+            align-items: center;
+            list-style: none;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            transition: color var(--transition);
+            position: relative;
+        }
+
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: -4px; left: 0;
+            width: 0; height: 2px;
+            background: var(--accent-cyan);
+            transition: width var(--transition);
+        }
+
+        .nav-links a:hover { color: var(--accent-cyan); }
+        .nav-links a:hover::after { width: 100%; }
+
+        .nav-cta {
+            padding: 8px 20px !important;
+            background: linear-gradient(135deg, var(--accent-cyan), #0090cc) !important;
+            color: #000 !important;
+            border-radius: 8px;
+            font-weight: 700 !important;
+            -webkit-text-fill-color: #000 !important;
+        }
+
+        .nav-cta:hover {
+            box-shadow: 0 4px 20px rgba(0,194,255,0.4);
+            transform: translateY(-1px);
+        }
+
+        .nav-cta::after { display: none !important; }
+
+        /* ═══════════════════════════════════
+           HERO SECTION
+           ═══════════════════════════════════ */
+        .hero {
+            position: relative;
+            z-index: 1;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 120px 32px 80px;
+            text-align: center;
+        }
+
+        .hero-content {
+            max-width: 800px;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 18px;
+            background: rgba(0,194,255,0.08);
+            border: 1px solid rgba(0,194,255,0.2);
+            border-radius: 40px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--accent-cyan);
+            margin-bottom: 28px;
+            animation: fadeInDown 0.8s ease-out;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .hero-badge .pulse-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            animation: gridPulse 2s ease-in-out infinite;
+        }
+
+        .hero h1 {
+            font-size: clamp(2.5rem, 6vw, 4.5rem);
+            font-weight: 900;
+            line-height: 1.1;
+            letter-spacing: -2px;
+            margin-bottom: 24px;
+            animation: fadeInUp 0.8s ease-out 0.2s both;
+        }
+
+        .hero h1 .gradient-text {
+            background: linear-gradient(135deg, var(--accent-cyan) 0%, var(--accent-purple) 50%, var(--accent-pink) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: clamp(1rem, 2vw, 1.25rem);
+            color: var(--text-secondary);
+            max-width: 580px;
+            margin: 0 auto 40px;
+            line-height: 1.7;
+            animation: fadeInUp 0.8s ease-out 0.4s both;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+            animation: fadeInUp 0.8s ease-out 0.6s both;
+        }
+
+        .hero-btn {
+            padding: 16px 36px;
+            border-radius: 12px;
+            font-family: 'Inter', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            text-decoration: none;
+            transition: all var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            border: none;
+        }
+
+        .hero-btn-primary {
+            background: linear-gradient(135deg, var(--accent-cyan), #0090cc);
+            color: #000;
+            box-shadow: 0 8px 30px rgba(0,194,255,0.35);
+        }
+
+        .hero-btn-primary:hover {
+            box-shadow: 0 12px 45px rgba(0,194,255,0.5);
+            transform: translateY(-3px);
+        }
+
+        .hero-btn-secondary {
+            background: var(--bg-elevated);
+            border: 1.5px solid var(--border);
+            color: var(--text-primary);
+        }
+
+        .hero-btn-secondary:hover {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 8px 30px rgba(0,194,255,0.15);
+            transform: translateY(-3px);
+        }
+
+        /* Floating particles behind hero */
+        .hero-particles {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .particle {
+            position: absolute;
+            border-radius: 50%;
+            opacity: 0.15;
+            animation: float 8s ease-in-out infinite;
+        }
+
+        .particle:nth-child(1) { width: 300px; height: 300px; background: var(--accent-cyan); top: 10%; left: 5%; animation-delay: 0s; }
+        .particle:nth-child(2) { width: 200px; height: 200px; background: var(--accent-purple); top: 60%; right: 10%; animation-delay: 2s; }
+        .particle:nth-child(3) { width: 150px; height: 150px; background: var(--accent-green); bottom: 15%; left: 20%; animation-delay: 4s; }
+        .particle:nth-child(4) { width: 100px; height: 100px; background: var(--accent-pink); top: 30%; right: 25%; animation-delay: 1s; filter: blur(40px); }
+
+        /* ═══════════════════════════════════
+           STATS BAR
+           ═══════════════════════════════════ */
+        .stats-section {
+            position: relative;
+            z-index: 1;
+            padding: 0 32px;
+            margin-top: -40px;
+            margin-bottom: 80px;
+        }
+
+        .stats-grid {
+            max-width: 900px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1px;
+            background: var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            padding: 28px 20px;
+            text-align: center;
+            transition: background var(--transition);
+        }
+
+        .stat-card:hover { background: var(--bg-elevated); }
+
+        .stat-number {
+            font-size: 2.2rem;
+            font-weight: 900;
+            font-family: 'JetBrains Mono', monospace;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-green));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1;
+            margin-bottom: 6px;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 600;
+        }
+
+        /* ═══════════════════════════════════
+           FEATURES SECTION
+           ═══════════════════════════════════ */
+        .section {
+            position: relative;
+            z-index: 1;
+            padding: 100px 32px;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .section-label {
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--accent-cyan);
+            margin-bottom: 12px;
+        }
+
+        .section-title {
+            font-size: clamp(1.8rem, 4vw, 2.8rem);
+            font-weight: 900;
+            letter-spacing: -1px;
+            line-height: 1.2;
+            margin-bottom: 16px;
+        }
+
+        .section-desc {
+            font-size: 1.05rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            line-height: 1.7;
+            margin-bottom: 60px;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 32px;
+            transition: all var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.5s ease;
+        }
+
+        .feature-card:hover::before { transform: scaleX(1); }
+
+        .feature-card:hover {
+            border-color: rgba(0,194,255,0.2);
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        .feature-icon {
+            width: 52px; height: 52px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6rem;
+            margin-bottom: 20px;
+        }
+
+        .feature-icon.cyan { background: rgba(0,194,255,0.1); }
+        .feature-icon.green { background: rgba(0,255,136,0.1); }
+        .feature-icon.purple { background: rgba(168,85,247,0.1); }
+        .feature-icon.amber { background: rgba(255,184,0,0.1); }
+        .feature-icon.pink { background: rgba(255,107,157,0.1); }
+        .feature-icon.red { background: rgba(255,34,68,0.1); }
+
+        .feature-card h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .feature-card p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .feature-tag {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-top: 14px;
+        }
+
+        .feature-tag.ai { background: rgba(168,85,247,0.15); color: var(--accent-purple); }
+        .feature-tag.cloud { background: rgba(0,194,255,0.12); color: var(--accent-cyan); }
+        .feature-tag.security { background: rgba(0,255,136,0.12); color: var(--accent-green); }
+        .feature-tag.iot { background: rgba(255,184,0,0.12); color: var(--accent-amber); }
+
+        /* ═══════════════════════════════════
+           ARCHITECTURE SECTION
+           ═══════════════════════════════════ */
+        .arch-diagram {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr auto 1fr;
+            align-items: center;
+            gap: 16px;
+            padding: 40px 20px;
+            margin-bottom: 40px;
+        }
+
+        .arch-node {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 28px 20px;
+            text-align: center;
+            transition: all var(--transition);
+        }
+
+        .arch-node:hover {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 30px rgba(0,194,255,0.15);
+        }
+
+        .arch-node-icon {
+            font-size: 2.5rem;
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        .arch-node-title {
+            font-size: 0.9rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .arch-node-desc {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .arch-arrow {
+            font-size: 1.5rem;
+            color: var(--accent-cyan);
+            text-align: center;
+            animation: pulse 2.5s ease-in-out infinite;
+        }
+
+        /* ═══════════════════════════════════
+           HOW IT WORKS
+           ═══════════════════════════════════ */
+        .steps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 24px;
+            counter-reset: step-counter;
+        }
+
+        .step-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 32px 24px;
+            text-align: center;
+            position: relative;
+            counter-increment: step-counter;
+            transition: all var(--transition);
+        }
+
+        .step-card:hover {
+            border-color: rgba(0,194,255,0.3);
+            transform: translateY(-4px);
+        }
+
+        .step-card::before {
+            content: counter(step-counter);
+            position: absolute;
+            top: -16px; left: 50%;
+            transform: translateX(-50%);
+            width: 34px; height: 34px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            color: #000;
+            font-weight: 800;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(0,194,255,0.3);
+        }
+
+        .step-icon {
+            font-size: 2.5rem;
+            margin: 12px 0 16px;
+        }
+
+        .step-card h3 {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .step-card p {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* ═══════════════════════════════════
+           TECH STACK
+           ═══════════════════════════════════ */
+        .tech-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+            gap: 12px;
+        }
+
+        .tech-chip {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 18px 14px;
+            text-align: center;
+            font-size: 0.8rem;
+            font-weight: 600;
+            transition: all var(--transition);
+        }
+
+        .tech-chip:hover {
+            border-color: var(--accent-cyan);
+            transform: translateY(-3px);
+        }
+
+        .tech-chip .tech-emoji {
+            display: block;
+            font-size: 1.6rem;
+            margin-bottom: 8px;
+        }
+
+        .tech-chip span:last-child {
+            color: var(--text-secondary);
+            font-size: 0.65rem;
+            display: block;
+            margin-top: 4px;
+        }
+
+        /* ═══════════════════════════════════
+           CTA SECTION
+           ═══════════════════════════════════ */
+        .cta-section {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            padding: 100px 32px;
+        }
+
+        .cta-box {
+            max-width: 700px;
+            margin: 0 auto;
+            background: linear-gradient(135deg, rgba(0,194,255,0.08), rgba(168,85,247,0.06));
+            border: 1px solid rgba(0,194,255,0.2);
+            border-radius: 24px;
+            padding: 60px 40px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cta-box::before {
+            content: '';
+            position: absolute;
+            top: -50%; left: -50%;
+            width: 200%; height: 200%;
+            background: radial-gradient(ellipse at center, rgba(0,194,255,0.05) 0%, transparent 60%);
+            animation: orbitSlow 20s linear infinite;
+        }
+
+        .cta-box h2 {
+            font-size: 2rem;
+            font-weight: 900;
+            letter-spacing: -1px;
+            margin-bottom: 12px;
+            position: relative;
+        }
+
+        .cta-box p {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            margin-bottom: 36px;
+            position: relative;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            position: relative;
+            flex-wrap: wrap;
+        }
+
+        /* ═══════════════════════════════════
+           FOOTER
+           ═══════════════════════════════════ */
+        .footer {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            padding: 40px 32px;
+            border-top: 1px solid var(--border);
+        }
+
+        .footer-brand {
+            font-size: 1.2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+
+        .footer p {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 16px;
+        }
+
+        .footer-links a {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color var(--transition);
+        }
+
+        .footer-links a:hover { color: var(--accent-cyan); }
+
+        /* ═══════════════════════════════════
+           RESPONSIVE
+           ═══════════════════════════════════ */
+        @media (max-width: 768px) {
+            .navbar { padding: 12px 16px; }
+            .nav-links { display: none; }
+            .hero { padding: 100px 20px 60px; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .section { padding: 60px 20px; }
+            .arch-diagram { 
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+            .arch-arrow { transform: rotate(90deg); }
+            .cta-box { padding: 40px 24px; }
+        }
+
+        @media (max-width: 480px) {
+            .features-grid { grid-template-columns: 1fr; }
+            .steps-grid { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ═══════════ NAVBAR ═══════════ -->
+    <nav class="navbar" id="navbar">
+        <a href="#" class="nav-brand">
+            <span class="nav-logo">🅿️</span>
+            <span class="nav-name">SnapPark</span>
+        </a>
+        <ul class="nav-links">
+            <li><a href="#features">Features</a></li>
+            <li><a href="#how-it-works">How It Works</a></li>
+            <li><a href="#architecture">Architecture</a></li>
+            <li><a href="#tech">Tech Stack</a></li>
+            <li><a href="entry.html" class="nav-cta">Launch App →</a></li>
+        </ul>
+    </nav>
+
+    <!-- ═══════════ HERO ═══════════ -->
+    <section class="hero" id="hero">
+        <div class="hero-particles">
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+        </div>
+        <div class="hero-content">
+            <div class="hero-badge">
+                <span class="pulse-dot"></span>
+                Live System · Cloud Deployed
+            </div>
+            <h1>
+                Smart Parking,<br>
+                <span class="gradient-text">Reimagined.</span>
+            </h1>
+            <p>
+                No app downloads. No friction. Just scan a QR code, pick your slot from an AI-powered 3D map, and go. 
+                SnapPark is a hybrid edge-cloud parking platform with surge pricing, real-time analytics, and cryptographic vehicle authentication.
+            </p>
+            <div class="hero-buttons">
+                <a href="entry.html" class="hero-btn hero-btn-primary">
+                    🚗 Park Now
+                </a>
+                <a href="#how-it-works" class="hero-btn hero-btn-secondary">
+                    📖 See How It Works
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════ STATS ═══════════ -->
+    <div class="stats-section">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">1.2s</div>
+                <div class="stat-label">Check-In Time</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">0</div>
+                <div class="stat-label">App Downloads</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">3</div>
+                <div class="stat-label">Vehicle Classes</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">24/7</div>
+                <div class="stat-label">Automated</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════ FEATURES ═══════════ -->
+    <section class="section" id="features">
+        <div class="reveal">
+            <div class="section-label">Core Features</div>
+            <h2 class="section-title">Everything a Modern<br>Parking System Needs</h2>
+            <p class="section-desc">
+                Built from the ground up with enterprise-grade security, real-time analytics, and a relentless focus on zero-friction user experience.
+            </p>
+        </div>
+
+        <div class="features-grid">
+            <div class="feature-card reveal">
+                <div class="feature-icon cyan">📱</div>
+                <h3>App-Less QR Access</h3>
+                <p>No downloads, no sign-ups. Users scan a dynamic QR code and instantly access the full parking interface as a lightweight PWA — works on any phone, any browser.</p>
+                <span class="feature-tag cloud">Zero Friction</span>
+            </div>
+
+            <div class="feature-card reveal">
+                <div class="feature-icon purple">⭐</div>
+                <h3>AI Slot Recommendation</h3>
+                <p>Our scoring algorithm analyzes entry point proximity, historical demand heatmaps, and vehicle type compatibility to recommend the mathematically optimal parking slot.</p>
+                <span class="feature-tag ai">Machine Learning</span>
+            </div>
+
+            <div class="feature-card reveal">
+                <div class="feature-icon amber">⚡</div>
+                <h3>Dynamic Surge Pricing</h3>
+                <p>Uber-style algorithmic yield management. Rates auto-adjust based on real-time occupancy percentage and time-of-day demand curves to maximize lot revenue.</p>
+                <span class="feature-tag iot">Real-Time</span>
+            </div>
+
+            <div class="feature-card reveal">
+                <div class="feature-icon green">🔐</div>
+                <h3>Cryptographic 2FA Exit</h3>
+                <p>Every session generates a unique 6-digit PIN bound to the user's device. The physical gate won't open without it — making vehicle theft inside the lot impossible.</p>
+                <span class="feature-tag security">Anti-Theft</span>
+            </div>
+
+            <div class="feature-card reveal">
+                <div class="feature-icon pink">🗺️</div>
+                <h3>3D Digital Twin</h3>
+                <p>An interactive isometric 3D grid renders the entire parking lot in real-time. Includes a booking-frequency heatmap mode for management analytics and spatial optimization.</p>
+                <span class="feature-tag ai">Visualization</span>
+            </div>
+
+            <div class="feature-card reveal">
+                <div class="feature-icon red">🤖</div>
+                <h3>Autonomous Enforcement</h3>
+                <p>A background LockSweeper thread acts as a digital police officer — detecting abandoned bookings, revoking stale locks, and auto-applying fines to the database.</p>
+                <span class="feature-tag security">Automated</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════ HOW IT WORKS ═══════════ -->
+    <section class="section" id="how-it-works">
+        <div class="reveal">
+            <div class="section-label">User Journey</div>
+            <h2 class="section-title">Park in 4 Steps.<br>No App Required.</h2>
+            <p class="section-desc">
+                The entire flow — from arrival to exit — takes under 90 seconds and requires zero prior setup from the driver.
+            </p>
+        </div>
+
+        <div class="steps-grid">
+            <div class="step-card reveal">
+                <div class="step-icon">📷</div>
+                <h3>Scan QR</h3>
+                <p>Drive up to the Kiosk. Point your phone camera at the screen. The parking app loads instantly in your browser.</p>
+            </div>
+            <div class="step-card reveal">
+                <div class="step-icon">🗺️</div>
+                <h3>Pick a Slot</h3>
+                <p>See the full lot in a live 3D grid. Our AI recommends the best spot based on proximity and demand analytics.</p>
+            </div>
+            <div class="step-card reveal">
+                <div class="step-icon">🔑</div>
+                <h3>Get Your PIN</h3>
+                <p>Confirm your booking and receive a cryptographic 6-digit session PIN. This is your anti-theft key for exit.</p>
+            </div>
+            <div class="step-card reveal">
+                <div class="step-icon">💳</div>
+                <h3>Pay & Exit</h3>
+                <p>When leaving, scan the Exit QR. See your dynamic bill with surge rates, pay via UPI/Cash, and present your PIN.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════ ARCHITECTURE ═══════════ -->
+    <section class="section" id="architecture">
+        <div class="reveal">
+            <div class="section-label">System Design</div>
+            <h2 class="section-title">Hybrid Edge-Cloud<br>Architecture</h2>
+            <p class="section-desc">
+                A decoupled, event-driven topology that combines the raw performance of local Edge hardware with the infinite scalability of Cloud infrastructure.
+            </p>
+        </div>
+
+        <div class="arch-diagram reveal">
+            <div class="arch-node">
+                <span class="arch-node-icon">📱</span>
+                <div class="arch-node-title">Mobile PWA</div>
+                <div class="arch-node-desc">Vercel CDN · Global Edge</div>
+            </div>
+            <div class="arch-arrow">⟶</div>
+            <div class="arch-node">
+                <span class="arch-node-icon">🖥️</span>
+                <div class="arch-node-title">Kiosk Gateway</div>
+                <div class="arch-node-desc">JavaFX · Ngrok Tunnel</div>
+            </div>
+            <div class="arch-arrow">⟶</div>
+            <div class="arch-node">
+                <span class="arch-node-icon">🗄️</span>
+                <div class="arch-node-title">Cloud Database</div>
+                <div class="arch-node-desc">Neon PostgreSQL · AWS</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════ TECH STACK ═══════════ -->
+    <section class="section" id="tech">
+        <div class="reveal">
+            <div class="section-label">Built With</div>
+            <h2 class="section-title">Enterprise-Grade<br>Tech Stack</h2>
+            <p class="section-desc">
+                Every layer of SnapPark runs on production-grade, industry-standard tooling.
+            </p>
+        </div>
+
+        <div class="tech-grid reveal">
+            <div class="tech-chip"><span class="tech-emoji">☕</span>Java 21<span>Backend Engine</span></div>
+            <div class="tech-chip"><span class="tech-emoji">🎨</span>JavaFX<span>Kiosk 3D Rendering</span></div>
+            <div class="tech-chip"><span class="tech-emoji">🐘</span>PostgreSQL<span>Cloud Database</span></div>
+            <div class="tech-chip"><span class="tech-emoji">▲</span>Vercel<span>Global CDN</span></div>
+            <div class="tech-chip"><span class="tech-emoji">🌐</span>Ngrok<span>Secure Tunnel</span></div>
+            <div class="tech-chip"><span class="tech-emoji">📡</span>REST API<span>JSON over HTTPS</span></div>
+            <div class="tech-chip"><span class="tech-emoji">📱</span>HTML/JS<span>Mobile PWA</span></div>
+            <div class="tech-chip"><span class="tech-emoji">🔐</span>HMAC SHA<span>Session Crypto</span></div>
+        </div>
+    </section>
+
+    <!-- ═══════════ CTA ═══════════ -->
+    <section class="cta-section">
+        <div class="cta-box reveal">
+            <h2>Ready to Park Smarter?</h2>
+            <p>Experience the future of smart parking. No downloads. No accounts. Just scan and go.</p>
+            <div class="cta-buttons">
+                <a href="entry.html" class="hero-btn hero-btn-primary">🚗 Enter Parking</a>
+                <a href="exit.html" class="hero-btn hero-btn-secondary">🚪 Exit Parking</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════ FOOTER ═══════════ -->
+    <footer class="footer">
+        <div class="footer-brand">🅿️ SnapPark</div>
+        <p>Smart Parking Infrastructure · Built with ☕ Java + ▲ Vercel + 🐘 Neon PostgreSQL</p>
+        <div class="footer-links">
+            <a href="https://github.com/rajmodi262/SnapPark-Smart-Parking" target="_blank">GitHub</a>
+            <a href="entry.html">Entry Portal</a>
+            <a href="exit.html">Exit Portal</a>
+        </div>
+        <p style="margin-top:16px; color:var(--text-muted);">© 2026 SnapPark. All rights reserved.</p>
+    </footer>
+
+    <!-- ═══════════ SCRIPTS ═══════════ -->
+    <script>
+        // Navbar scroll effect
+        window.addEventListener('scroll', () => {
+            document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 60);
+        });
+
+        // Scroll reveal
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry, i) => {
+                if (entry.isIntersecting) {
+                    setTimeout(() => {
+                        entry.target.classList.add('visible');
+                    }, i * 100);
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.15 });
+
+        document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+        // Animated counting for stats
+        function animateCount(el, target, suffix = '') {
+            let current = 0;
+            const step = target / 40;
+            const timer = setInterval(() => {
+                current += step;
+                if (current >= target) { current = target; clearInterval(timer); }
+                el.textContent = Math.round(current) + suffix;
+            }, 30);
+        }
+
+        const statsObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    statsObserver.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.5 });
+    </script>
+
+</body>
+</html>
