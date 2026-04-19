@@ -691,7 +691,7 @@ public class WebServer {
     private void setCors(HttpExchange ex) {
         ex.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
         ex.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-        ex.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type");
+        ex.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type, ngrok-skip-browser-warning");
     }
 
     private boolean handlePreflight(HttpExchange ex) throws IOException {
