@@ -12,7 +12,7 @@ public class AnalyticsService {
 
     private AnalyticsService() {}
 
-    public static AnalyticsService getInstance() {
+    public static synchronized AnalyticsService getInstance() {
         if (instance == null) instance = new AnalyticsService();
         return instance;
     }

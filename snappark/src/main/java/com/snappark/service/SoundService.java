@@ -13,7 +13,7 @@ public class SoundService {
 
     private SoundService() {}
 
-    public static SoundService getInstance() {
+    public static synchronized SoundService getInstance() {
         if (instance == null) instance = new SoundService();
         return instance;
     }

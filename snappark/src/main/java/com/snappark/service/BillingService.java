@@ -10,7 +10,7 @@ public class BillingService {
 
     private BillingService() {}
 
-    public static BillingService getInstance() {
+    public static synchronized BillingService getInstance() {
         if (instance == null) instance = new BillingService();
         return instance;
     }
@@ -20,11 +20,13 @@ public class BillingService {
      */
     public double calculateFee(VehicleType type, LocalDateTime entry, LocalDateTime exit) {
         Duration duration = Duration.between(entry, exit);
+        long seconds = duration.toSeconds();
+        if (seconds < 1) seconds = 1;
+        // Grace period: first 10 seconds free (demo mode)
+        if (seconds <= 10) return 0.0;
         long minutes = duration.toMinutes();
         if (minutes < 1) minutes = 1;
-        // Grace period: first 15 minutes free
-        if (minutes <= 15) return 0.0;
-        double hours = Math.ceil((minutes - 15) / 30.0) / 2.0;
+        double hours = Math.ceil(minutes / 30.0) / 2.0;
         if (hours < 1.0) hours = 1.0;
 
         // Get surge-adjusted rate
@@ -51,6 +53,42 @@ public class BillingService {
         return Math.round(hours * rate * 100.0) / 100.0;
     }
 
+    // ── LOYALTY DISCOUNT ─────────────────────────────────────────────
+    /**
+     * Calculate loyalty discount based on the time gap between the previous
+     * visit's exit_time and the current session's entry_time.
+     *
+     * - Within 24 hours: 10% off
+     * - Within 7 days:    5% off
+     * - Within 30 days:   2% off
+     * - First visit / >30 days: 0%
+     *
+     * Non-compounding. Uses only the most recent completed session.
+     * Applied only to parking fee, NOT to fines.
+     */
+    public double calculateLoyaltyDiscount(LocalDateTime previousExitTime, LocalDateTime currentEntryTime) {
+        if (previousExitTime == null || currentEntryTime == null) return 0.0;
+        Duration gap = Duration.between(previousExitTime, currentEntryTime);
+        long hours = gap.toHours();
+        long days = gap.toDays();
+
+        if (hours <= 24)  return 10.0;
+        if (days <= 7)    return 5.0;
+        if (days <= 30)   return 2.0;
+        return 0.0;
+    }
+
+    /**
+     * Returns a human-readable label for the loyalty discount tier.
+     */
+    public String getLoyaltyLabel(double discountPercent) {
+        if (discountPercent >= 10.0) return "Returning within 24hrs";
+        if (discountPercent >= 5.0)  return "Returning within 7 days";
+        if (discountPercent >= 2.0)  return "Returning within 30 days";
+        return "";
+    }
+    // ── END LOYALTY DISCOUNT ─────────────────────────────────────────
+
     public double applyDiscount(double amount, double discountPercent) {
         if (discountPercent < 0 || discountPercent > 100) return amount;
         return Math.round((amount - (amount * discountPercent / 100)) * 100.0) / 100.0;
@@ -73,7 +111,9 @@ public class BillingService {
                                    double amount, double discount, String paymentMethod,
                                    double fineAmount, String sessionPin, String exitPin) {
         Duration dur = Duration.between(entry, exit);
-        double finalAmount = applyDiscount(amount, discount) + fineAmount;
+        double discountAmount = amount * discount / 100.0;
+        double afterDiscount = applyDiscount(amount, discount);
+        double finalAmount = afterDiscount + fineAmount;
 
         StringBuilder sb = new StringBuilder();
         sb.append("╔══════════════════════════════════════╗\n");
@@ -87,8 +127,12 @@ public class BillingService {
         sb.append(String.format("║  Duration : %dh %dm%22s║\n", dur.toHours(), dur.toMinutesPart(), ""));
         sb.append("╠══════════════════════════════════════╣\n");
         sb.append(String.format("║  Parking  : Rs. %-20.2f ║\n", amount));
-        if (discount > 0)
-            sb.append(String.format("║  Discount : %-24s ║\n", String.format("%.0f%%", discount)));
+        if (discount > 0) {
+            sb.append(String.format("║  Loyalty  : %-24s ║\n",
+                String.format("%.0f%% (%s)", discount, getLoyaltyLabel(discount))));
+            sb.append(String.format("║  Saved    : Rs. %-20.2f ║\n", discountAmount));
+            sb.append(String.format("║  After    : Rs. %-20.2f ║\n", afterDiscount));
+        }
         if (fineAmount > 0)
             sb.append(String.format("║  Fines    : Rs. %-20.2f ║\n", fineAmount));
         sb.append("╠══════════════════════════════════════╣\n");

@@ -1,0 +1,58 @@
+════════════════════════════════════════════════════════════════
+  ENHANCEMENT 2: RETURNING DRIVER LOYALTY DISCOUNT
+  Owner: Raj Modi
+════════════════════════════════════════════════════════════════
+
+WHAT IS THIS?
+─────────────
+When the same vehicle (license plate) visits SnapPark again,
+the system automatically applies a one-time discount on the
+current parking bill based on how recently the driver last parked.
+
+DISCOUNT TIERS
+──────────────
+  ┌────────────────────────────────┬────────────┐
+  │ Return Window                  │ Discount   │
+  ├────────────────────────────────┼────────────┤
+  │ Within 24 hours of last visit  │ 10% off    │
+  │ Within 7 days                  │  5% off    │
+  │ Within 30 days                 │  2% off    │
+  │ First visit or > 30 days       │  0% off    │
+  └────────────────────────────────┴────────────┘
+
+KEY RULES
+─────────
+• NON-COMPOUNDING: Only ONE tier applies (the highest matching)
+• Applied only to parking fee, NOT to fines/penalties
+• Uses only the MOST RECENT completed session
+• Does NOT store a permanent discount balance
+• Recalculated fresh on every checkout
+• Driver identified by license plate → vehicle_id
+
+WHERE THE DISCOUNT IS VISIBLE
+─────────────────────────────
+✓ Mobile bill screen (purple loyalty row)
+✓ Mobile exit PIN confirmation screen
+✓ Kiosk bill screen (shows % and savings)
+✓ Kiosk Cash payment amount
+✓ Kiosk UPI payment amount + QR code
+✓ Kiosk success screen
+✓ Printed/generated receipt
+✓ Transaction record in database
+
+JAVA CONCEPTS USED
+──────────────────
+• java.time.Duration for time gap calculation
+• Prepared Statements with ORDER BY + LIMIT 1
+• Singleton Pattern (BillingService)
+• try-catch safety wrappers (non-fatal errors)
+• Method overloading (generateReceipt with multiple signatures)
+
+FILES MODIFIED
+──────────────
+1. SessionDAO.java      — Added findLastCompletedByVehicle()
+2. BillingService.java  — Added calculateLoyaltyDiscount(), getLoyaltyLabel(), applyDiscount()
+3. WebServer.java       — Updated lookup-session and checkout handlers
+4. KioskExitController  — Added discount to bill, payment, receipt screens
+5. app.js (mobile)      — Loyalty row display on bill and exit PIN screen
+6. exit.html            — Added loyaltyRow HTML element

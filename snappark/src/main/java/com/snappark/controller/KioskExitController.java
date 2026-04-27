@@ -86,6 +86,8 @@ public class KioskExitController implements Initializable {
     private Vehicle        currentVehicle;
     private ParkingSlot    currentSlot;
     private double         currentAmount;
+    private double         currentLoyaltyDiscount;
+    private double         currentDiscountedAmount;
     private String         currentPIN;
     private String         currentPayMethod;
     private Timeline       cdTL, upiTimerTL;
@@ -165,18 +167,40 @@ public class KioskExitController implements Initializable {
             currentVehicle.getVehicleType(), currentSession.getEntryTime(), now);
         java.time.Duration dur = java.time.Duration.between(currentSession.getEntryTime(), now);
 
+        // ── LOYALTY DISCOUNT ──────────────────────────────────────
+        currentLoyaltyDiscount = 0.0;
+        try {
+            ParkingSession prevSession = sessionDAO.findLastCompletedByVehicle(currentVehicle.getId());
+            if (prevSession != null && prevSession.getExitTime() != null) {
+                currentLoyaltyDiscount = billingService.calculateLoyaltyDiscount(
+                    prevSession.getExitTime(), currentSession.getEntryTime());
+            }
+        } catch (Exception e) {
+            System.err.println("Loyalty discount error (non-fatal): " + e.getMessage());
+        }
+        currentDiscountedAmount = billingService.applyDiscount(currentAmount, currentLoyaltyDiscount);
+        // ── END LOYALTY ──────────────────────────────────────────
+
         if(billPlate   !=null) billPlate.setText(currentVehicle.getLicensePlate());
         if(billOwner   !=null) billOwner.setText(currentVehicle.getOwnerName());
         if(billSlot    !=null) billSlot.setText(currentSlot!=null?currentSlot.getSlotNumber():"?");
         if(billEntry   !=null) billEntry.setText(currentSession.getEntryTime().format(FMT));
         if(billDuration!=null) billDuration.setText(dur.toHours()+"h "+dur.toMinutesPart()+"m");
-        if(billTotal   !=null) billTotal.setText("Rs. "+String.format("%.0f",currentAmount));
+        if(billTotal   !=null) {
+            if (currentLoyaltyDiscount > 0) {
+                double saved = currentAmount - currentDiscountedAmount;
+                billTotal.setText(String.format("Rs. %.0f  (%.0f%% loyalty → save Rs. %.0f)",
+                    currentDiscountedAmount, currentLoyaltyDiscount, saved));
+            } else {
+                billTotal.setText("Rs. "+String.format("%.0f",currentAmount));
+            }
+        }
         show("step2");
     }
 
     // ── STEP 2 → 3 ─────────────────────────────────────────────────
     @FXML public void handleProceedToPayment() {
-        String amtStr = "Rs. "+String.format("%.0f",currentAmount);
+        String amtStr = "Rs. "+String.format("%.0f",currentDiscountedAmount);
         if(payAmountHeader!=null) payAmountHeader.setText(amtStr);
         if(cashAmountLabel!=null) cashAmountLabel.setText(amtStr);
         if(upiAmountLabel !=null) upiAmountLabel.setText(amtStr);
@@ -188,14 +212,14 @@ public class KioskExitController implements Initializable {
     @FXML public void selectUPI()  { currentPayMethod="UPI";  showUPI();  }
 
     private void showCash() {
-        if(cashPayLabel!=null) cashPayLabel.setText("Rs. "+String.format("%.0f",currentAmount));
+        if(cashPayLabel!=null) cashPayLabel.setText("Rs. "+String.format("%.0f",currentDiscountedAmount));
         show("step3cash");
     }
 
     private void showUPI() {
-        if(upiPayLabel!=null) upiPayLabel.setText("Rs. "+String.format("%.0f",currentAmount));
+        if(upiPayLabel!=null) upiPayLabel.setText("Rs. "+String.format("%.0f",currentDiscountedAmount));
         String upiData = "upi://pay?pa=SnapPark@upi&pn=SnapPark&am="
-            +String.format("%.0f",currentAmount)
+            +String.format("%.0f",currentDiscountedAmount)
             +"&cu=INR&tn=TKT-"+String.format("%05d",currentSession.getId());
         if(upiQRView!=null)
             upiQRView.setImage(QRCodeService.generateQR(
@@ -278,12 +302,13 @@ public class KioskExitController implements Initializable {
         String receipt = billingService.generateReceipt(
             currentVehicle.getLicensePlate(),
             currentSlot!=null ? currentSlot.getSlotNumber() : "?",
-            currentSession.getEntryTime(), exitTime, currentAmount, 0, method);
+            currentSession.getEntryTime(), exitTime,
+            currentAmount, currentLoyaltyDiscount, method);
 
         Transaction t = new Transaction();
         t.setSessionId(currentSession.getId());
         t.setAmount(currentAmount);
-        t.setDiscount(0);
+        t.setDiscount(currentLoyaltyDiscount);
         t.setPaymentTime(exitTime);
         t.setReceipt(receipt);
         t.setPaymentMethod(method);
@@ -293,11 +318,15 @@ public class KioskExitController implements Initializable {
         if(receiptQR  !=null)
             receiptQR.setImage(QRCodeService.generateQR(
                 "RECEIPT:TKT-"+currentSession.getId()+"|"
-                    +currentVehicle.getLicensePlate()+"|Rs."+currentAmount,
+                    +currentVehicle.getLicensePlate()+"|Rs."+currentDiscountedAmount,
                 200, Color.web("#00FF88"), Color.web("#05080F")));
 
-        if(successSub!=null)
-            successSub.setText("Paid via "+method+"  ·  Rs. "+String.format("%.0f",currentAmount));
+        if(successSub!=null) {
+            String discountInfo = currentLoyaltyDiscount > 0
+                ? String.format("  ·  %.0f%% loyalty discount", currentLoyaltyDiscount) : "";
+            successSub.setText("Paid via "+method+"  ·  Rs. "
+                +String.format("%.0f",currentDiscountedAmount)+discountInfo);
+        }
         show("step3success");
         playSuccessAnimation(method);
     }

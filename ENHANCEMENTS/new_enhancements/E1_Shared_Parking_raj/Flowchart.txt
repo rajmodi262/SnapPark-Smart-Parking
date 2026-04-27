@@ -1,0 +1,102 @@
+════════════════════════════════════════════════════════════════
+  ENHANCEMENT 1: FLOWCHART
+  Owner: Aaditya Sinha
+════════════════════════════════════════════════════════════════
+
+TEXT-BASED FLOW
+───────────────
+
+  User selects BIKE type
+         │
+         ▼
+  ┌─────────────────┐
+  │ Are bike slots   │──── NO ───→ Show only BIKE slots (normal)
+  │ full?            │
+  └────────┬─────────┘
+           │ YES
+           ▼
+  ┌─────────────────────────┐
+  │ Show PURPLE banner:      │
+  │ "Bike slots full!        │
+  │  Share a Car slot"       │
+  │                          │
+  │ Light up CAR slots with  │
+  │ purple borders + 🏍️×2   │
+  └────────┬────────────────┘
+           │
+           ▼
+  User selects a CAR slot
+           │
+           ▼
+  ┌─────────────────────────┐
+  │ Count active sessions    │
+  │ on this slot             │
+  └────────┬────────────────┘
+           │
+     ┌─────┴─────┐
+     │            │
+   0 bikes      1 bike        2 bikes
+     │            │              │
+     ▼            ▼              ▼
+  SHARED      OCCUPIED       REJECT
+  (1st bike)  (2nd bike)     "Slot full"
+
+
+EXIT FLOW
+─────────
+
+  Bike exits shared slot
+         │
+         ▼
+  ┌─────────────────────────┐
+  │ Count remaining active   │
+  │ sessions on slot         │
+  └────────┬────────────────┘
+           │
+     ┌─────┴─────┐
+     │            │
+   1 left       0 left
+     │            │
+     ▼            ▼
+  SHARED      AVAILABLE
+  (1 bike     (empty,
+   still       open for
+   parked)     anyone)
+
+
+MERMAID DIAGRAM (for rendering tools)
+─────────────────────────────────────
+
+```mermaid
+flowchart TD
+    A[User selects BIKE] --> B{All bike slots full?}
+    B -- No --> C[Show normal BIKE slots only]
+    B -- Yes --> D["Show PURPLE banner + CAR slots with 🏍️×2"]
+    D --> E[User clicks a CAR slot]
+    E --> F{Count active sessions on slot}
+    F -- 0 --> G["Set SHARED status (1st bike)"]
+    F -- 1 --> H["Set OCCUPIED status (2nd bike)"]
+    F -- 2 --> I["REJECT: Slot already has 2 bikes"]
+    G --> J[Create parking session]
+    H --> J
+    J --> K[Show confirmation with SHARED notice]
+
+    L[Bike exits] --> M{Remaining sessions?}
+    M -- 1 left --> N["Set SHARED (1 bike still parked)"]
+    M -- 0 left --> O["Set AVAILABLE (slot empty)"]
+```
+
+
+STATE MACHINE DIAGRAM
+─────────────────────
+
+  AVAILABLE ──(1st bike)──→ SHARED ──(2nd bike)──→ OCCUPIED
+      ↑                       ↑                        │
+      │                       │                        │
+      └──(2nd bike exits)─────┘──(1st bike exits)──────┘
+
+  Status Transitions:
+    AVAILABLE → SHARED    (first bike parks in car slot)
+    SHARED    → OCCUPIED  (second bike parks, slot full)
+    OCCUPIED  → SHARED    (one bike exits, one remains)
+    SHARED    → AVAILABLE (last bike exits, slot empty)

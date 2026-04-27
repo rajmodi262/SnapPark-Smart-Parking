@@ -1,0 +1,143 @@
+================================================================================
+  REPORT E10: DATABASE CONNECTION LOGGER
+  Member: Levinesh GR | Role: Database Architect & System Integrator
+================================================================================
+
+1. WHAT: Log every DB connection open/close with timestamps to the console.
+2. WHY: Helps detect connection leaks and monitor pool health during runtime.
+3. CODE: java.util.logging.Logger + SimpleDateFormat + String.format().
+
+================================================================================
+4. JAVA CONCEPTS EXPLAINED IN DETAIL
+================================================================================
+
+A) java.util.logging.Logger — Built-in Java Logging
+----------------------------------------------------
+Java has a BUILT-IN logging framework — no external library needed.
+Logger provides different severity levels for categorizing messages.
+
+    import java.util.logging.Logger;
+    import java.util.logging.Level;
+
+    private static final Logger LOGGER = Logger.getLogger("SnapPark.DB");
+
+    LOGGER.info("Connection opened");      // informational
+    LOGGER.warning("Pool running low!");   // potential problem
+    LOGGER.severe("Connection FAILED!");   // critical error
+
+LOG LEVELS (from lowest to highest severity):
+    FINEST  → extremely detailed tracing
+    FINER   → fairly detailed tracing
+    FINE    → general developer info
+    CONFIG  → configuration messages
+    INFO    → routine operational messages      ← we use this
+    WARNING → potential problems                ← we use this
+    SEVERE  → serious failures                  ← we use this
+
+WHY Logger and not System.out.println()?
+  - Logger has LEVELS — you can filter what gets printed
+  - Logger has TIMESTAMPS built in
+  - Logger can write to files, not just console
+  - Logger is THREAD-SAFE (println can mix output in multithreaded apps)
+
+MIND MAP — Logger vs println:
+    ┌──────────────────────────────────────────────────────────┐
+    │   System.out.println()          Logger.info()           │
+    │   ─────────────────────         ─────────────           │
+    │   No severity levels            Has 7 levels            │
+    │   No timestamps                 Auto-timestamps         │
+    │   Console only                  Console + File + more   │
+    │   NOT thread-safe               Thread-safe             │
+    │   Cannot filter                 Can filter by level     │
+    │   Good for debugging            Good for production     │
+    └──────────────────────────────────────────────────────────┘
+
+
+B) SimpleDateFormat — Formatting Timestamps
+--------------------------------------------
+SimpleDateFormat converts a Date object into a human-readable string.
+
+    SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
+    String time = sdf.format(new Date());  // "14:32:05"
+
+PATTERN LETTERS:
+    yyyy → 2026         (4-digit year)
+    MM   → 04           (2-digit month)
+    dd   → 27           (2-digit day)
+    HH   → 14           (24-hour format)
+    mm   → 32           (minutes)
+    ss   → 05           (seconds)
+
+EXAMPLE PATTERNS:
+    "HH:mm:ss"           → "14:32:05"
+    "yyyy-MM-dd HH:mm"   → "2026-04-27 14:32"
+    "dd/MM/yyyy"          → "27/04/2026"
+
+WARNING: SimpleDateFormat is NOT thread-safe!
+    // BAD — shared across threads:
+    static SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
+
+    // GOOD — create new instance per use:
+    String time = new SimpleDateFormat("HH:mm:ss").format(new Date());
+
+
+C) String.format() — Formatted String Construction
+----------------------------------------------------
+String.format() creates formatted strings using placeholders.
+
+    String msg = String.format("[DB] %s — Connection %s (pool: %d/%d active)",
+                               time, "OPENED", 3, 5);
+    // Result: "[DB] 14:32:05 — Connection OPENED (pool: 3/5 active)"
+
+FORMAT SPECIFIERS:
+    %s  → String     ("OPENED", "CLOSED")
+    %d  → Integer    (3, 5, 12)
+    %f  → Float      (3.14)
+    %.2f → Float with 2 decimal places (3.14)
+    %n  → Newline (platform-independent)
+
+WHY String.format() and not concatenation?
+    // UGLY — hard to read:
+    String msg = "[DB] " + time + " — Connection " + action + " (pool: " + a + "/" + t + ")";
+
+    // CLEAN — easy to read:
+    String msg = String.format("[DB] %s — Connection %s (pool: %d/%d active)", time, action, a, t);
+
+MIND MAP — Connection Logger Flow:
+    DatabaseManager.getConnection()
+                |
+    [Log: "[DB] 14:32:05 — Connection OPENED (pool: 3/5 active)"]
+                |
+    [Return connection to caller]
+                |
+    ... caller uses connection ...
+                |
+    connection.close()
+                |
+    [Log: "[DB] 14:32:08 — Connection CLOSED (pool: 2/5 active)"]
+
+
+================================================================================
+5. VISIBLE ON SCREEN
+================================================================================
+  Server console output:
+  ┌──────────────────────────────────────────────────────────────────┐
+  │  [DB] 14:32:05 — Connection OPENED (pool: 3/5 active)          │
+  │  [DB] 14:32:05 — Query executed: SELECT * FROM parking_slots   │
+  │  [DB] 14:32:06 — Connection CLOSED (pool: 2/5 active)          │
+  │  [DB] 14:33:12 — Connection OPENED (pool: 3/5 active)          │
+  │  [DB] 14:33:12 — Connection CLOSED (pool: 2/5 active)          │
+  └──────────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+7. SAFETY GUARANTEES
+================================================================================
+  [✓] Only ADDS logging statements — no existing logic is changed
+  [✓] Logger output goes to console only — no file I/O side effects
+  [✓] If logging fails, connection operations continue normally
+  [✓] No external API or library needed — uses only java.util.logging
+  [✓] Does NOT touch: QR codes, mobile HTML/JS, check-in/checkout flow
+  [✓] Zero performance impact — logging is asynchronous by default
+
+================================================================================

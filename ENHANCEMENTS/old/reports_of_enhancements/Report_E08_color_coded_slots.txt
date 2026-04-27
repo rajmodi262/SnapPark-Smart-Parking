@@ -1,0 +1,91 @@
+================================================================================
+  REPORT E08: COLOR-CODED DURATION SLOTS ON KIOSK
+  Member: Rohit | Role: JavaFX Desktop & Kiosk Developer
+================================================================================
+
+1. WHAT: Color kiosk slots by parking duration (Green/Yellow/Red).
+2. WHY: Staff can identify long-stayers vs short-stayers at a glance.
+3. CODE: SessionDAO duration query + JavaFX CSS class assignment.
+
+================================================================================
+4. JAVA CONCEPTS EXPLAINED IN DETAIL
+================================================================================
+
+A) Duration.between() — Java Time API
+---------------------------------------
+Duration measures the amount of time between two temporal objects.
+
+    LocalDateTime entry = session.getEntryTime();
+    LocalDateTime now   = LocalDateTime.now();
+    Duration parked     = Duration.between(entry, now);
+    long minutes        = parked.toMinutes();
+
+    if (minutes < 60)       → GREEN  (short stay)
+    else if (minutes < 180) → YELLOW (medium stay)
+    else                    → RED    (long stay / overstay)
+
+KEY Duration Methods:
+    toMinutes()    — total minutes (e.g., 150)
+    toHours()      — total hours (e.g., 2)
+    toSeconds()    — total seconds (e.g., 9000)
+    toDays()       — total days
+
+MIND MAP — Duration Classification:
+    ┌──────────────────────────────────────────┐
+    │         DURATION CLASSIFICATION          │
+    │                                          │
+    │  0 ──────── 60min ──── 180min ────── ∞  │
+    │  |  GREEN   |  YELLOW  |    RED      |  │
+    │  |  < 1hr   |  1-3hr   |    > 3hr    |  │
+    │  |  Short   |  Medium  |    Long     |  │
+    │  |  stay    |  stay    |    overstay  |  │
+    └──────────────────────────────────────────┘
+
+
+B) HashMap<Integer, Long> — Slot-to-Duration Mapping
+------------------------------------------------------
+    Map<Integer, Long> durations = sessionDAO.getActiveSessionDurations();
+    // Key: slotId (e.g., 3)
+    // Value: minutes parked (e.g., 95)
+
+    // Apply CSS class per slot:
+    for (ParkingSlot slot : occupiedSlots) {
+        Long mins = durations.get(slot.getId());
+        if (mins < 60)       slotNode.getStyleClass().add("duration-short");
+        else if (mins < 180) slotNode.getStyleClass().add("duration-medium");
+        else                 slotNode.getStyleClass().add("duration-long");
+    }
+
+
+C) JavaFX Dynamic CSS Classes
+-------------------------------
+    /* dark-theme.css */
+    .duration-short  { -fx-background-color: #4CAF50; }  /* Green  */
+    .duration-medium { -fx-background-color: #FF9800; }  /* Orange */
+    .duration-long   { -fx-background-color: #f44336; }  /* Red    */
+
+================================================================================
+5. VISIBLE ON KIOSK SCREEN
+================================================================================
+    ┌──────────────────────────────────────┐
+    │  PARKING GRID                        │
+    │  ┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐│
+    │  │ 01 │ │ 02 │ │ 03 │ │ 04 │ │ 05 ││
+    │  │ 🟢 │ │ 🟡 │ │ 🔴 │ │ ⚪ │ │ 🟢 ││
+    │  │25m │ │90m │ │4hr │ │free│ │10m ││
+    │  └────┘ └────┘ └────┘ └────┘ └────┘│
+    │                                      │
+    │  Legend: 🟢<1hr  🟡 1-3hr  🔴 >3hr   │
+    └──────────────────────────────────────┘
+
+
+================================================================================
+7. SAFETY GUARANTEES
+================================================================================
+  [?] KIOSK-ONLY change � does NOT touch mobile HTML/JS or WebServer endpoints
+  [?] If duration query fails, slots show in default colors � zero visual breakage
+  [?] getActiveSessionDurations() wrapped in try-catch returning empty map on fail
+  [?] No external API or library needed � uses only Duration.between() and JDBC
+  [?] Does NOT touch: QR codes, check-in/checkout flow, mobile slot selection
+
+================================================================================

@@ -1,0 +1,50 @@
+════════════════════════════════════════════════════════════════
+  ENHANCEMENT 1: TWO-WHEELER SHARED PARKING
+  Owner: Aaditya Sinha
+════════════════════════════════════════════════════════════════
+
+WHAT IS THIS?
+─────────────
+When all BIKE parking slots are full, the system allows
+two 2-wheelers (bikes) to share a single CAR parking slot.
+
+WHY IS THIS NEEDED?
+───────────────────
+In real-world parking lots, bike slots fill up faster than
+car slots. Instead of turning away bike riders when bike
+slots are full, we utilize empty car slots — since 2 bikes
+can physically fit in 1 car space.
+
+HOW IT WORKS (Simple Explanation)
+─────────────────────────────────
+1. User selects BIKE as vehicle type
+2. System checks: "Are all 5 bike slots full?"
+3. If YES → Car slots light up in PURPLE on the mobile UI
+4. User selects a purple car slot
+5. First bike parks → slot goes to SHARED status (room for 1 more)
+6. Second bike parks → slot goes to OCCUPIED (full)
+7. When first bike exits → slot returns to SHARED
+8. When second bike exits → slot returns to AVAILABLE
+
+KEY RULES
+─────────
+• Maximum 2 bikes per car slot (never 3)
+• Only allowed when ALL bike slots are full
+• If bike slots are available, system blocks car slot selection
+• Each bike gets its own independent session and bill
+
+JAVA CONCEPTS USED
+──────────────────
+• Enum Extension (SlotStatus.SHARED)
+• State Machine Pattern (AVAILABLE → SHARED → OCCUPIED)
+• Stream API for filtering slots
+• Thread-safe singleton (ParkingService)
+• Prepared Statements for DB queries
+
+FILES MODIFIED
+──────────────
+1. SlotStatus.java         — Added SHARED enum value
+2. SessionDAO.java         — Added countActiveBySlot() method
+3. ParkingService.java     — Added shared booking logic
+4. WebServer.java          — Updated check-in API handler
+5. app.js (mobile)         — Purple UI badges and banner

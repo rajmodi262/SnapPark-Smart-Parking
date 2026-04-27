@@ -1,0 +1,14 @@
+ENHANCEMENT E02 — VEHICLE RE-ENTRY PREVENTION
+Member: Raj Modi
+=================================================
+
+PROMPT (Copy-paste this directly):
+
+"In my SnapPark project at c:\Users\Raj Modi\Pictures\snappark, modify the handleCheckin method in WebServer.java to prevent the same vehicle from checking in twice. Before creating a new session, query the database using SessionDAO to check if there is already an active session (active=true) for the same vehicle plate number. If found, return a 409 Conflict JSON error response like: {\"error\": \"Vehicle MH12AB1234 is already parked in Slot B-03!\", \"existingSlot\": \"B-03\"}. Add a findActiveByPlate(String plate) method to SessionDAO that joins parking_sessions with vehicles table to look up active sessions by plate.
+
+CRITICAL SAFETY RULES:
+- Wrap the entire duplicate check in a try-catch. If the query fails for ANY reason, log the error and ALLOW the check-in to proceed normally. Never block a check-in because of a failed validation query.
+- Do NOT modify any existing endpoints or change the /api/slots response format.
+- Do NOT touch the QR code generation or any mobile HTML/CSS/JS files.
+- Do NOT require any external API or library — use only existing JDBC code.
+- Test by running mvn clean compile to verify no build errors."

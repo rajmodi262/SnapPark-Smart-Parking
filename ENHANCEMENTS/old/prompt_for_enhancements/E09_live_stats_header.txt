@@ -1,0 +1,15 @@
+ENHANCEMENT E09 — LIVE STATS HEADER ON KIOSK
+Member: Rohit
+=================================================
+
+PROMPT (Copy-paste this directly):
+
+"In my SnapPark project at c:\Users\Raj Modi\Pictures\snappark, add a live statistics header bar to the kiosk welcome screen. In AnalyticsService.java, add a method Map<String, Object> getTodaySnapshot() that returns a HashMap with keys: 'totalVehiclesToday' (count of sessions created today), 'todayRevenue' (sum of today's transactions), and 'peakHour' (the hour with the most check-ins today, formatted like '2PM-3PM'). Wrap the entire method in try-catch — if any query fails, return default values (0, 0.0, 'N/A'). Then in KioskWelcomeController.java, programmatically add an HBox at the top of the root layout with 3 styled Label cards showing these stats. Use a ScheduledExecutorService to refresh every 30 seconds, updating labels using Platform.runLater(). Style cards inline with setStyle() using dark semi-transparent backgrounds.
+
+CRITICAL SAFETY RULES:
+- If getTodaySnapshot() fails, show default text ('0 vehicles', 'Rs. 0', 'N/A') — never crash.
+- The ScheduledExecutorService MUST be shut down in the controller's cleanup/stop method to prevent memory leaks.
+- This is KIOSK-ONLY — do NOT touch any mobile HTML/JS files, WebServer endpoints, or QR code logic.
+- Do NOT modify existing FXML layouts — add the HBox programmatically in the controller's initialize() method.
+- Do NOT require any external API or library.
+- Test by running mvn clean compile to verify no build errors."

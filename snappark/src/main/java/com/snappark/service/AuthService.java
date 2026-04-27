@@ -15,7 +15,7 @@ public class AuthService {
         this.userDAO = new UserDAO();
     }
 
-    public static AuthService getInstance() {
+    public static synchronized AuthService getInstance() {
         if (instance == null) {
             instance = new AuthService();
         }

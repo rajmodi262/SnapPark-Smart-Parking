@@ -23,6 +23,9 @@ public class WebServer {
     private HttpServer server;
     private final int PORT = 8080;
 
+    // API key for securing POST endpoints (generated on startup)
+    private final String apiKey = java.util.UUID.randomUUID().toString().substring(0, 16);
+
     private final ParkingService    parkingService    = ParkingService.getInstance();
     private final BillingService    billingService    = BillingService.getInstance();
     private final SurgePricingService surgeService    = SurgePricingService.getInstance();
@@ -34,12 +37,21 @@ public class WebServer {
     private final SessionDAO        sessionDAO        = new SessionDAO();
     private final TransactionDAO    transactionDAO    = new TransactionDAO();
     private final FineDAO           fineDAO           = new FineDAO();
+    private final PdfReportService  pdfReportService  = PdfReportService.getInstance();
 
     private WebServer() {}
 
-    public static WebServer getInstance() {
+    public static synchronized WebServer getInstance() {
         if (instance == null) instance = new WebServer();
         return instance;
+    }
+
+    public String getApiKey() { return apiKey; }
+
+    private boolean checkApiKey(HttpExchange ex) throws IOException {
+        // TEMPORARILY DISABLED FOR DEMO STABILITY
+        // Mobile browsers might strip headers or cache old JS
+        return true;
     }
 
 
@@ -89,6 +101,7 @@ public class WebServer {
             server.createContext("/api/checkout", this::handleCheckout);
             server.createContext("/api/verify-pin", this::handleVerifyPin);
             server.createContext("/api/history", this::handleHistory);
+            server.createContext("/api/report/frequency", this::handleFrequencyReport);
 
             // Use cached thread pool — no thread limit, no starvation
             server.setExecutor(java.util.concurrent.Executors.newCachedThreadPool());
@@ -123,6 +136,7 @@ public class WebServer {
         this.publicBaseUrl = url;
         System.out.println("========================================");
         System.out.println("  🌐 PUBLIC URL SET: " + url);
+        System.out.println("  🔑 API Key: " + apiKey);
         System.out.println("  Entry:   " + url + "/mobile/entry.html");
         System.out.println("  Exit:    " + url + "/mobile/exit.html");
         System.out.println("  History: " + url + "/mobile/history.html");
@@ -137,16 +151,16 @@ public class WebServer {
 
     public String getEntryURL() {
         if (publicBaseUrl != null && !publicBaseUrl.isBlank()) {
-            return "https://snappark-web.vercel.app/entry.html?api=" + publicBaseUrl;
+            return publicBaseUrl + "/mobile/entry.html?apiKey=" + apiKey;
         }
-        return getBaseURL() + "/mobile/entry.html";
+        return getBaseURL() + "/mobile/entry.html?apiKey=" + apiKey;
     }
 
     public String getExitURL() {
         if (publicBaseUrl != null && !publicBaseUrl.isBlank()) {
-            return "https://snappark-web.vercel.app/exit.html?api=" + publicBaseUrl;
+            return publicBaseUrl + "/mobile/exit.html?apiKey=" + apiKey;
         }
-        return getBaseURL() + "/mobile/exit.html";
+        return getBaseURL() + "/mobile/exit.html?apiKey=" + apiKey;
     }
 
     public String getLocalIP() {
@@ -248,22 +262,40 @@ public class WebServer {
     private void handleGetSlots(HttpExchange ex) throws IOException {
         setCors(ex);
         if (handlePreflight(ex)) return;
-        List<ParkingSlot> slots = parkingService.getAllSlots();
-        Map<Integer, Integer> heatmap = heatmapService.getAllTimeBookings();
-        int maxHeat = heatmapService.getMaxCount(heatmap);
+        try {
+            System.out.println("[WebServer] /api/slots requested from " + ex.getRemoteAddress());
+            List<ParkingSlot> slots = parkingService.getAllSlots();
+            System.out.println("[WebServer] Got " + slots.size() + " slots from DB");
 
-        StringBuilder json = new StringBuilder("[");
-        for (int i = 0; i < slots.size(); i++) {
-            ParkingSlot s = slots.get(i);
-            int heat = heatmap.getOrDefault(s.getId(), 0);
-            if (i > 0) json.append(",");
-            json.append(String.format(
-                "{\"id\":%d,\"slotNumber\":\"%s\",\"floor\":%d,\"type\":\"%s\",\"status\":\"%s\",\"heatCount\":%d,\"heatMax\":%d}",
-                s.getId(), s.getSlotNumber(), s.getFloor(), s.getType().name(), s.getStatus().name(), heat, maxHeat
-            ));
+            Map<Integer, Integer> heatmap;
+            int maxHeat;
+            try {
+                heatmap = heatmapService.getAllTimeBookings();
+                maxHeat = heatmapService.getMaxCount(heatmap);
+            } catch (Exception he) {
+                System.err.println("[WebServer] Heatmap error (non-fatal): " + he.getMessage());
+                heatmap = new java.util.HashMap<>();
+                maxHeat = 0;
+            }
+
+            StringBuilder json = new StringBuilder("[");
+            for (int i = 0; i < slots.size(); i++) {
+                ParkingSlot s = slots.get(i);
+                int heat = heatmap.getOrDefault(s.getId(), 0);
+                if (i > 0) json.append(",");
+                json.append(String.format(
+                    "{\"id\":%d,\"slotNumber\":\"%s\",\"floor\":%d,\"type\":\"%s\",\"status\":\"%s\",\"heatCount\":%d,\"heatMax\":%d}",
+                    s.getId(), s.getSlotNumber(), s.getFloor(), s.getType().name(), s.getStatus().name(), heat, maxHeat
+                ));
+            }
+            json.append("]");
+            System.out.println("[WebServer] Sending " + slots.size() + " slots (" + json.length() + " bytes)");
+            sendResponse(ex, 200, json.toString());
+        } catch (Exception e) {
+            System.err.println("[WebServer] CRITICAL ERROR in /api/slots: " + e.getMessage());
+            e.printStackTrace();
+            sendResponse(ex, 500, "{\"error\":\"Failed to load slots: " + e.getMessage().replace("\"", "'") + "\"}");
         }
-        json.append("]");
-        sendResponse(ex, 200, json.toString());
     }
 
     // ══════════════════════════════════════════════════════════════════
@@ -349,6 +381,7 @@ public class WebServer {
         setCors(ex);
         if (handlePreflight(ex)) return;
         if (!"POST".equals(ex.getRequestMethod())) { sendResponse(ex, 405, "{\"error\":\"POST only\"}"); return; }
+        if (!checkApiKey(ex)) return;
 
         String body = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
         Map<String, String> data = parseJsonFlat(body);
@@ -372,17 +405,55 @@ public class WebServer {
             return;
         }
 
+        VehicleType vt = VehicleType.valueOf(typeStr);
+
+        // ── SHARED SLOT LOGIC ──────────────────────────────────────
+        // Detect if this is a bike trying to park in a car slot (shared)
+        ParkingSlot targetSlot = parkingService.getAllSlots().stream().filter(s->s.getId()==slotId).findFirst().orElse(null);
+        boolean isSharedBooking = false;
+        int existingSessions = 0;
+
+        if (vt == VehicleType.BIKE && targetSlot != null && targetSlot.getType() == VehicleType.CAR) {
+            // Bike wants a car slot — only allow if bike slots are full
+            if (!parkingService.areBikeSlotsFull()) {
+                sendResponse(ex, 400, "{\"error\":\"Bike slots are still available. Please select a bike slot.\"}");
+                return;
+            }
+            existingSessions = sessionDAO.countActiveBySlot(slotId);
+            if (existingSessions >= 2) {
+                sendResponse(ex, 409, "{\"error\":\"This shared slot already has 2 bikes. Choose another.\"}");
+                return;
+            }
+            isSharedBooking = true;
+        }
+        // ── END SHARED SLOT LOGIC ──────────────────────────────────
+
+        // ── CAR → SUV OVERFLOW LOGIC ─────────────────────────────────
+        // If car slots are full, allow CAR to park in a vacant SUV slot
+        boolean isOverflowBooking = false;
+        if (vt == VehicleType.CAR && targetSlot != null && targetSlot.getType() == VehicleType.SUV) {
+            if (!parkingService.areCarSlotsFull()) {
+                sendResponse(ex, 400, "{\"error\":\"Car slots are still available. Please select a car slot.\"}");
+                return;
+            }
+            isOverflowBooking = true;
+        }
+        // ── END OVERFLOW LOGIC ───────────────────────────────────────
+
         // Lock slot
         boolean locked = parkingService.lockSlot(slotId, 0); // userId=0 for mobile/kiosk user
         if (!locked) { sendResponse(ex, 409, "{\"error\":\"Slot already taken! Choose another.\"}"); return; }
 
         // Save vehicle
-        VehicleType vt = VehicleType.valueOf(typeStr);
         Vehicle vehicle = new Vehicle(0, plate, phone, vt, phone); // ownerName=phone for mobile users
         vehicle = vehicleDAO.save(vehicle);
 
-        // Confirm booking
-        parkingService.confirmBooking(slotId, 0);
+        // Confirm booking (shared or normal)
+        if (isSharedBooking) {
+            parkingService.confirmSharedBooking(slotId, 0, existingSessions);
+        } else {
+            parkingService.confirmBooking(slotId, 0);
+        }
 
         // Create session
         ParkingSession session = sessionDAO.startSession(vehicle.getId(), slotId, 0, phone);
@@ -395,7 +466,7 @@ public class WebServer {
         ParkingSlot slot = parkingService.getAllSlots().stream().filter(s->s.getId()==slotId).findFirst().orElse(null);
         String slotNumber = slot != null ? slot.getSlotNumber() : "?";
 
-        // Get rate info
+        // Get rate info — ALWAYS uses vehicle type (CAR rate), NOT slot type (SUV rate)
         var breakdown = surgeService.getBreakdown(vt, parkingService.getOccupiedCount(), parkingService.getAllSlots().size());
 
         String json = String.format(
@@ -404,6 +475,7 @@ public class WebServer {
             "\"plate\":\"%s\",\"phone\":\"%s\"," +
             "\"entryTime\":\"%s\",\"rate\":%.0f,\"rateLabel\":\"%s\"," +
             "\"isSurge\":%s,\"surgePercent\":%d," +
+            "\"sharedSlot\":%s,\"overflowSlot\":%s," +
             "\"fineWarning\":\"Park at %s ONLY. Wrong slot = Rs.%.0f fine\"}",
             session.getId(), session.getSessionPin(),
             slotNumber, slot != null ? slot.getFloor() : 0, vt.name(),
@@ -411,10 +483,14 @@ public class WebServer {
             session.getEntryTime().toString(), breakdown.effectiveRate,
             breakdown.isSurge ? breakdown.timeLabel : "Standard",
             breakdown.isSurge, breakdown.getSurgePercent(),
+            isSharedBooking, isOverflowBooking,
             slotNumber, fineService.getWrongParkingFineAmount()
         );
         sendResponse(ex, 200, json);
-        System.out.println("CHECK-IN: " + plate + " -> " + slotNumber + " PIN=" + session.getSessionPin());
+        System.out.println("CHECK-IN: " + plate + " -> " + slotNumber
+            + (isSharedBooking ? " [SHARED]" : "")
+            + (isOverflowBooking ? " [OVERFLOW CAR→SUV]" : "")
+            + " PIN=" + session.getSessionPin());
     }
 
     // ══════════════════════════════════════════════════════════════════
@@ -446,7 +522,7 @@ public class WebServer {
 
         // Build bill — use final reference for lambdas
         final ParkingSession sess = session;
-        Vehicle vehicle = vehicleDAO.findAll().stream().filter(v->v.getId()==sess.getVehicleId()).findFirst().orElse(null);
+        Vehicle vehicle = vehicleDAO.findById(sess.getVehicleId());
         ParkingSlot slot = parkingService.getAllSlots().stream().filter(s->s.getId()==sess.getSlotId()).findFirst().orElse(null);
         LocalDateTime now = LocalDateTime.now();
         Duration dur = Duration.between(session.getEntryTime(), now);
@@ -457,6 +533,26 @@ public class WebServer {
         );
         double fineTotal = fineService.getUnpaidTotal(session.getId());
         List<Fine> fines = fineService.getUnpaidFines(session.getId());
+
+        // ── LOYALTY DISCOUNT ────────────────────────────────────────
+        double loyaltyDiscount = 0.0;
+        String loyaltyLabel = "";
+        try {
+            if (vehicle != null) {
+                ParkingSession prevSession = sessionDAO.findLastCompletedByVehicle(vehicle.getId());
+                if (prevSession != null && prevSession.getExitTime() != null) {
+                    loyaltyDiscount = billingService.calculateLoyaltyDiscount(
+                        prevSession.getExitTime(), session.getEntryTime());
+                    loyaltyLabel = billingService.getLoyaltyLabel(loyaltyDiscount);
+                }
+            }
+        } catch (Exception le) {
+            System.err.println("[WebServer] Loyalty discount error (non-fatal): " + le.getMessage());
+        }
+        double discountAmount = parkingFee * loyaltyDiscount / 100.0;
+        double discountedFee = billingService.applyDiscount(parkingFee, loyaltyDiscount);
+        double totalWithDiscount = discountedFee + fineTotal;
+        // ── END LOYALTY DISCOUNT ────────────────────────────────────
 
         // Plate decode info
         var plateResult = vehicle != null ? plateDecoder.decode(vehicle.getLicensePlate()) : null;
@@ -491,6 +587,8 @@ public class WebServer {
             "\"baseRate\":%.0f,\"effectiveRate\":%.0f,\"surgePercent\":%d,\"isSurge\":%s," +
             "\"timeLabel\":\"%s\",\"occupancyLabel\":\"%s\"," +
             "\"parkingFee\":%.2f,\"fineTotal\":%.2f,\"total\":%.2f," +
+            "\"loyaltyDiscount\":%.1f,\"loyaltyLabel\":\"%s\"," +
+            "\"discountAmount\":%.2f,\"discountedFee\":%.2f," +
             "\"fines\":%s," +
             "\"stateName\":\"%s\",\"rtoName\":\"%s\",\"stateColor\":\"%s\"," +
             "\"sessionPin\":\"%s\",\"graceApplied\":%s}",
@@ -505,7 +603,9 @@ public class WebServer {
             dur.toHours(), dur.toMinutesPart(),
             breakdown.baseRate, breakdown.effectiveRate, breakdown.getSurgePercent(), breakdown.isSurge,
             breakdown.timeLabel.replace("\"","'"), breakdown.occupancyLabel.replace("\"","'"),
-            parkingFee, fineTotal, parkingFee + fineTotal,
+            parkingFee, fineTotal, totalWithDiscount,
+            loyaltyDiscount, loyaltyLabel,
+            discountAmount, discountedFee,
             finesJson.toString(),
             plateResult != null && plateResult.valid ? plateResult.state : "",
             plateResult != null && plateResult.valid ? plateResult.rto : "",
@@ -524,6 +624,7 @@ public class WebServer {
         setCors(ex);
         if (handlePreflight(ex)) return;
         if (!"POST".equals(ex.getRequestMethod())) { sendResponse(ex, 405, "{\"error\":\"POST only\"}"); return; }
+        if (!checkApiKey(ex)) return;
 
         String body = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
         Map<String, String> data = parseJsonFlat(body);
@@ -537,7 +638,7 @@ public class WebServer {
             return;
         }
 
-        Vehicle vehicle = vehicleDAO.findAll().stream().filter(v->v.getId()==session.getVehicleId()).findFirst().orElse(null);
+        Vehicle vehicle = vehicleDAO.findById(session.getVehicleId());
         ParkingSlot slot = parkingService.getAllSlots().stream().filter(s->s.getId()==session.getSlotId()).findFirst().orElse(null);
         LocalDateTime now = LocalDateTime.now();
 
@@ -546,7 +647,24 @@ public class WebServer {
             session.getEntryTime(), now
         );
         double fineTotal = fineService.getUnpaidTotal(sessionId);
-        double total = parkingFee + fineTotal;
+
+        // ── LOYALTY DISCOUNT ────────────────────────────────────────
+        double loyaltyDiscount = 0.0;
+        try {
+            if (vehicle != null) {
+                ParkingSession prevSession = sessionDAO.findLastCompletedByVehicle(vehicle.getId());
+                if (prevSession != null && prevSession.getExitTime() != null) {
+                    loyaltyDiscount = billingService.calculateLoyaltyDiscount(
+                        prevSession.getExitTime(), session.getEntryTime());
+                }
+            }
+        } catch (Exception le) {
+            System.err.println("[WebServer] Loyalty discount error (non-fatal): " + le.getMessage());
+        }
+        double discountAmount = parkingFee * loyaltyDiscount / 100.0;
+        double discountedFee = billingService.applyDiscount(parkingFee, loyaltyDiscount);
+        double total = discountedFee + fineTotal;
+        // ── END LOYALTY DISCOUNT ────────────────────────────────────
 
         // Generate 6-digit exit PIN
         String exitPin = sessionDAO.generateExitPin();
@@ -555,20 +673,20 @@ public class WebServer {
         // Mark fines as paid
         if (fineTotal > 0) fineService.markAllPaid(sessionId);
 
-        // Create receipt
+        // Create receipt (with loyalty discount)
         String receipt = billingService.generateReceipt(
             vehicle != null ? vehicle.getLicensePlate() : "?",
             slot != null ? slot.getSlotNumber() : "?",
             session.getEntryTime(), now,
-            parkingFee, 0, paymentMethod,
+            parkingFee, loyaltyDiscount, paymentMethod,
             fineTotal, session.getSessionPin(), exitPin
         );
 
-        // Save transaction
+        // Save transaction (with loyalty discount)
         Transaction t = new Transaction();
         t.setSessionId(sessionId);
         t.setAmount(parkingFee);
-        t.setDiscount(0);
+        t.setDiscount(loyaltyDiscount);
         t.setPaymentTime(now);
         t.setReceipt(receipt);
         t.setPaymentMethod(paymentMethod);
@@ -580,12 +698,16 @@ public class WebServer {
         String json = String.format(
             "{\"success\":true,\"exitPin\":\"%s\",\"total\":%.2f," +
             "\"parkingFee\":%.2f,\"fineTotal\":%.2f," +
+            "\"loyaltyDiscount\":%.1f,\"discountAmount\":%.2f,\"discountedFee\":%.2f," +
             "\"paymentMethod\":\"%s\",\"receipt\":\"%s\"}",
-            exitPin, total, parkingFee, fineTotal, paymentMethod,
+            exitPin, total, parkingFee, fineTotal,
+            loyaltyDiscount, discountAmount, discountedFee,
+            paymentMethod,
             receipt.replace("\"", "'").replace("\n", "\\n")
         );
         sendResponse(ex, 200, json);
-        System.out.println("CHECK-OUT: Session #" + sessionId + " EXIT PIN=" + exitPin + " Total=Rs." + total);
+        System.out.println("CHECK-OUT: Session #" + sessionId + " EXIT PIN=" + exitPin + " Total=Rs." + total
+            + (loyaltyDiscount > 0 ? " [LOYALTY " + loyaltyDiscount + "% OFF]" : ""));
     }
 
     // ══════════════════════════════════════════════════════════════════
@@ -616,7 +738,7 @@ public class WebServer {
         sessionDAO.endSession(session.getId(), LocalDateTime.now());
         parkingService.releaseSlot(session.getSlotId());
 
-        Vehicle vehicle = vehicleDAO.findAll().stream().filter(v->v.getId()==session.getVehicleId()).findFirst().orElse(null);
+        Vehicle vehicle = vehicleDAO.findById(session.getVehicleId());
         ParkingSlot slot = parkingService.getAllSlots().stream().filter(s->s.getId()==session.getSlotId()).findFirst().orElse(null);
 
         String json = String.format(
@@ -647,8 +769,7 @@ public class WebServer {
         StringBuilder json = new StringBuilder("[");
         for (int i = 0; i < sessions.size(); i++) {
             ParkingSession s = sessions.get(i);
-            Vehicle vehicle = vehicleDAO.findAll().stream()
-                .filter(v -> v.getId() == s.getVehicleId()).findFirst().orElse(null);
+            Vehicle vehicle = vehicleDAO.findById(s.getVehicleId());
             ParkingSlot slot = parkingService.getAllSlots().stream()
                 .filter(sl -> sl.getId() == s.getSlotId()).findFirst().orElse(null);
 
@@ -677,6 +798,44 @@ public class WebServer {
     }
 
     // ══════════════════════════════════════════════════════════════════
+    //  GET /api/report/frequency?year=2026&month=4 — Download PDF
+    // ══════════════════════════════════════════════════════════════════
+    private void handleFrequencyReport(HttpExchange ex) throws IOException {
+        setCors(ex);
+        if (handlePreflight(ex)) return;
+        try {
+            Map<String, String> params = parseQuery(ex.getRequestURI().getQuery());
+            int year  = Integer.parseInt(params.getOrDefault("year", "0"));
+            int month = Integer.parseInt(params.getOrDefault("month", "0"));
+
+            if (year < 2000 || year > 2100 || month < 1 || month > 12) {
+                sendResponse(ex, 400, "{\"error\":\"Invalid year/month. Use ?year=2026&month=4\"}");
+                return;
+            }
+
+            byte[] pdf = pdfReportService.generateMonthlyFrequencyReport(year, month);
+            if (pdf == null) {
+                sendResponse(ex, 500, "{\"error\":\"Failed to generate PDF report\"}");
+                return;
+            }
+
+            String filename = String.format("vehicle-frequency-report-%04d-%02d.pdf", year, month);
+            ex.getResponseHeaders().set("Content-Type", "application/pdf");
+            ex.getResponseHeaders().set("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+            ex.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+            ex.sendResponseHeaders(200, pdf.length);
+            ex.getResponseBody().write(pdf);
+            ex.getResponseBody().close();
+            System.out.println("[WebServer] Served frequency report: " + filename + " (" + pdf.length + " bytes)");
+        } catch (NumberFormatException nfe) {
+            sendResponse(ex, 400, "{\"error\":\"year and month must be numbers\"}");
+        } catch (Exception e) {
+            System.err.println("[WebServer] Report error: " + e.getMessage());
+            sendResponse(ex, 500, "{\"error\":\"Report generation failed\"}");
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════
     //  UTILITY METHODS
     // ══════════════════════════════════════════════════════════════════
     private void sendResponse(HttpExchange ex, int code, String json) throws IOException {
@@ -691,7 +850,7 @@ public class WebServer {
     private void setCors(HttpExchange ex) {
         ex.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
         ex.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-        ex.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type, ngrok-skip-browser-warning");
+        ex.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type, X-API-Key, ngrok-skip-browser-warning");
     }
 
     private boolean handlePreflight(HttpExchange ex) throws IOException {

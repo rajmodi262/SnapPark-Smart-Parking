@@ -1,0 +1,188 @@
+================================================================================
+  REPORT E01: SERVER HEALTH CHECK DASHBOARD
+  Member: Raj Modi | Role: Backend Java & API Developer
+================================================================================
+
+1. WHAT IS THIS ENHANCEMENT?
+-----------------------------
+We added a new REST API endpoint "/api/health" that returns a live JSON
+snapshot of the server's internal health — including uptime, memory usage,
+database pool status, and parking lot statistics.
+
+2. WHY ARE WE DOING THIS?
+--------------------------
+In any production-deployed application, system administrators need to
+monitor whether the server is healthy. Without a health endpoint, you
+only discover problems AFTER users complain. Health checks are used by
+tools like Kubernetes, AWS Load Balancers, and Uptime Robot to
+automatically restart unhealthy servers.
+
+3. WHAT CHANGES IN THE CODE?
+------------------------------
+FILE: WebServer.java
+  + Add field: private static final long START_TIME = System.currentTimeMillis();
+  + Add method: handleHealth(HttpExchange ex)
+  + Register in createContexts(): server.createContext("/api/health", ...)
+  + Use Runtime.getRuntime() for memory stats
+  + Use ParkingService for slot/session counts
+  + Build response with HashMap and JSON serialization
+
+================================================================================
+4. JAVA CONCEPTS EXPLAINED IN DETAIL
+================================================================================
+
+A) HashMap<String, Object> — The Data Container
+-------------------------------------------------
+A HashMap is a data structure that stores key-value pairs. It provides
+O(1) average-time lookups, insertions, and deletions using a hash table.
+
+HOW WE USE IT:
+    HashMap<String, Object> health = new HashMap<>();
+    health.put("status", "UP");
+    health.put("uptime_seconds", uptimeSeconds);
+    health.put("memory", memoryMap);     // nested HashMap!
+    health.put("parking", parkingMap);
+
+WHY HashMap and not TreeMap?
+  - HashMap: O(1) lookup, unordered — perfect for JSON (order doesn't matter)
+  - TreeMap: O(log n) lookup, sorted — unnecessary overhead here
+
+MIND MAP — HashMap Internals:
+    ┌─────────────────────────────────────────┐
+    │           HashMap<String, Object>       │
+    │                                         │
+    │  Bucket 0: ─── null                     │
+    │  Bucket 1: ─── "status" → "UP"         │
+    │  Bucket 2: ─── null                     │
+    │  Bucket 3: ─── "uptime" → 3542         │
+    │  Bucket 4: ─── "memory" → {nested map} │
+    │  ...                                    │
+    │  Bucket 15: ── "parking" → {nested map} │
+    │                                         │
+    │  Hash Function: key.hashCode() % 16     │
+    │  Collision: Linked List / Red-Black Tree │
+    └─────────────────────────────────────────┘
+
+
+B) Runtime.getRuntime() — JVM Memory Introspection
+----------------------------------------------------
+The Runtime class provides access to the Java Virtual Machine's runtime
+environment. It is a Singleton (only one instance exists per JVM).
+
+HOW WE USE IT:
+    Runtime rt = Runtime.getRuntime();
+    long totalMB = rt.totalMemory() / (1024 * 1024);
+    long freeMB  = rt.freeMemory()  / (1024 * 1024);
+    long usedMB  = totalMB - freeMB;
+
+KEY METHODS:
+    totalMemory()  — Total memory allocated to JVM (heap size)
+    freeMemory()   — Memory currently available within allocated heap
+    maxMemory()    — Maximum memory the JVM can allocate (-Xmx flag)
+
+MIND MAP — JVM Memory Layout:
+    ┌──────────────────────────────────────┐
+    │           JVM HEAP MEMORY            │
+    │                                      │
+    │  ┌────────────────────────────────┐  │
+    │  │  USED MEMORY (Objects, Arrays) │  │
+    │  │  ████████████████              │  │
+    │  └────────────────────────────────┘  │
+    │  ┌────────────────────────────────┐  │
+    │  │  FREE MEMORY (Available)       │  │
+    │  │  ░░░░░░░░░░░░░░░░░░░░░░░░░░░  │  │
+    │  └────────────────────────────────┘  │
+    │                                      │
+    │  totalMemory() = USED + FREE         │
+    │  maxMemory()   = Maximum possible    │
+    └──────────────────────────────────────┘
+
+
+C) System.currentTimeMillis() — Uptime Calculation
+----------------------------------------------------
+Returns the current time in milliseconds since January 1, 1970 (epoch).
+By saving the start time and subtracting, we calculate server uptime.
+
+HOW WE USE IT:
+    // At server start:
+    private static final long START_TIME = System.currentTimeMillis();
+
+    // In health check:
+    long uptimeMs = System.currentTimeMillis() - START_TIME;
+    long uptimeSeconds = uptimeMs / 1000;
+
+WHY NOT LocalDateTime?
+  - currentTimeMillis() is faster (no object creation)
+  - Better for duration calculation (just subtract two longs)
+  - LocalDateTime is better for display, not arithmetic
+
+
+D) REST API Design — GET Endpoint
+-----------------------------------
+REST (Representational State Transfer) is an architectural style where:
+  - GET    = Read data (no side effects)
+  - POST   = Create data
+  - PUT    = Update data
+  - DELETE = Remove data
+
+Our /api/health is a GET because it only READS server status.
+It has no side effects — calling it 1000 times changes nothing.
+
+MIND MAP — REST API Flow:
+    Browser/Client                    Java WebServer
+         |                                 |
+         |  GET /api/health                |
+         |────────────────────────────────>|
+         |                                 |
+         |                    [Build HashMap]
+         |                    [Query Runtime]
+         |                    [Query ParkingService]
+         |                    [Serialize to JSON]
+         |                                 |
+         |  200 OK                         |
+         |  Content-Type: application/json |
+         |  { "status": "UP", ... }        |
+         |<────────────────────────────────|
+
+
+================================================================================
+5. BENEFITS TO THE PROJECT
+================================================================================
+  [✓] Adds professional-grade server monitoring
+  [✓] Can be integrated with automated health-check tools
+  [✓] Shows faculty we understand production system requirements
+  [✓] Demonstrates HashMap, Runtime API, and REST design in one feature
+
+================================================================================
+6. SAMPLE OUTPUT (What faculty sees in browser)
+================================================================================
+{
+  "status": "UP",
+  "uptime_seconds": 3542,
+  "memory": {
+    "total_mb": 256,
+    "free_mb": 180,
+    "used_percent": 29.6
+  },
+  "database": {
+    "pool_size": 5,
+    "status": "CONNECTED"
+  },
+  "parking": {
+    "total_slots": 30,
+    "occupied": 12,
+    "available": 18,
+    "active_sessions": 12
+  }
+}
+================================================================================
+7. SAFETY GUARANTEES (Why this won't break anything)
+================================================================================
+  [✓] Brand NEW endpoint /api/health — no existing endpoint is modified
+  [✓] Entire handler wrapped in try-catch — returns "DEGRADED" on failure
+  [✓] No external API or library needed — uses only Runtime & existing services
+  [✓] Does NOT touch: QR codes, mobile HTML/JS, check-in/checkout flow
+  [✓] GET-only endpoint — no database writes, zero side effects
+  [✓] Even if this endpoint crashes, the rest of the server runs perfectly
+
+================================================================================

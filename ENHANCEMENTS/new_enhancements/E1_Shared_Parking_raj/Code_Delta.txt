@@ -1,0 +1,150 @@
+════════════════════════════════════════════════════════════════
+  ENHANCEMENT 1: CODE DELTA (Original vs Enhanced)
+  Owner: Aaditya Sinha
+════════════════════════════════════════════════════════════════
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 1: SlotStatus.java
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ORIGINAL:
+  public enum SlotStatus { AVAILABLE, LOCKING, OCCUPIED }
+
+ENHANCED:
+  public enum SlotStatus { AVAILABLE, LOCKING, OCCUPIED, SHARED }
+                                                         ^^^^^^^
+  Added SHARED to represent a slot with 1 bike (room for 1 more)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 2: SessionDAO.java — NEW METHOD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ORIGINAL: (method did not exist)
+
+ENHANCED:
+  /** Count how many active sessions exist for a given slot */
+  public int countActiveBySlot(int slotId) {
+      String sql = "SELECT COUNT(*) FROM parking_sessions
+                    WHERE slot_id = ? AND active = 1";
+      PreparedStatement ps = conn.prepareStatement(sql);
+      ps.setInt(1, slotId);
+      ResultSet rs = ps.executeQuery();
+      if (rs.next()) return rs.getInt(1);
+      return 0;
+  }
+
+  Purpose: Returns 0, 1, or 2 — tells us how many bikes
+           are currently parked in a shared slot.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 3: ParkingService.java — MAJOR CHANGES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ORIGINAL lockSlot():
+  if (slot.getStatus() != SlotStatus.AVAILABLE) {
+      return false;  // Only AVAILABLE slots could be locked
+  }
+
+ENHANCED lockSlot():
+  if (slot.getStatus() != SlotStatus.AVAILABLE
+      && slot.getStatus() != SlotStatus.SHARED) {
+      return false;  // Now SHARED slots can also be locked
+  }
+
+───────────────────────────────────────────────────────
+
+ORIGINAL confirmBooking():
+  slotDAO.updateStatus(slotId, SlotStatus.OCCUPIED);
+  // Always sets to OCCUPIED
+
+ENHANCED — NEW METHOD confirmSharedBooking():
+  if (existingSessions == 0) {
+      slotDAO.updateStatus(slotId, SlotStatus.SHARED);
+      // First bike → SHARED (room for one more)
+  } else {
+      slotDAO.updateStatus(slotId, SlotStatus.OCCUPIED);
+      // Second bike → OCCUPIED (slot full)
+  }
+
+───────────────────────────────────────────────────────
+
+ORIGINAL releaseSlot():
+  slotDAO.updateStatus(slotId, SlotStatus.AVAILABLE);
+  // Always set to AVAILABLE on exit
+
+ENHANCED releaseSlot():
+  int remaining = sessionDAO.countActiveBySlot(slotId);
+  if (remaining > 0) {
+      slotDAO.updateStatus(slotId, SlotStatus.SHARED);
+      // Another bike still parked → back to SHARED
+  } else {
+      slotDAO.updateStatus(slotId, SlotStatus.AVAILABLE);
+      // No bikes left → AVAILABLE
+  }
+
+───────────────────────────────────────────────────────
+
+NEW METHOD areBikeSlotsFull():
+  public boolean areBikeSlotsFull() {
+      long availableBikeSlots = allSlots.stream()
+          .filter(s -> s.getType() == VehicleType.BIKE
+                    && s.getStatus() == SlotStatus.AVAILABLE)
+          .count();
+      return totalBikeSlots > 0 && availableBikeSlots == 0;
+  }
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 4: WebServer.java — handleCheckin() ADDITION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ORIGINAL: No shared slot detection — only same-type slots
+
+ENHANCED — ADDED BLOCK:
+  if (vt == VehicleType.BIKE && targetSlot.getType() == VehicleType.CAR) {
+      if (!parkingService.areBikeSlotsFull()) {
+          sendResponse(ex, 400, "Bike slots are still available");
+          return;
+      }
+      existingSessions = sessionDAO.countActiveBySlot(slotId);
+      if (existingSessions >= 2) {
+          sendResponse(ex, 409, "This shared slot already has 2 bikes");
+          return;
+      }
+      isSharedBooking = true;
+  }
+
+  // Later in booking:
+  if (isSharedBooking) {
+      parkingService.confirmSharedBooking(slotId, 0, existingSessions);
+  } else {
+      parkingService.confirmBooking(slotId, 0);
+  }
+
+  // JSON response now includes:
+  "sharedSlot": true/false
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 5: app.js — MOBILE UI ADDITIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ENHANCED — Slot Rendering:
+  const bikeSlotsFull = selectedType === 'BIKE' && matchingAvail === 0;
+  const isShareable = bikeSlotsFull && slot.type === 'CAR'
+                      && (isAvail || isShared);
+
+  if (isShareable) {
+      cls += ' shared-available';
+      icon = '🟢';
+      badge = '🏍️×2';   // Shows bike×2 badge on car slot
+      style = 'border-color:#A855F7';  // Purple border
+  }
+
+ENHANCED — Banner:
+  if (bikeSlotsFull && sharedSlots > 0) {
+      // Shows purple banner:
+      "🏍️×2 Bike slots full! You can share a Car slot"
+  }

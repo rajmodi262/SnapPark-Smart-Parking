@@ -1,0 +1,119 @@
+════════════════════════════════════════════════════════════════
+  ENHANCEMENT 2: IMPLEMENTATION STEPS
+  Owner: Raj Modi
+════════════════════════════════════════════════════════════════
+
+STEP 1: Retrieve Previous Visit (DAO Layer)
+───────────────────────────────────────────
+File: SessionDAO.java
+
+Added method: findLastCompletedByVehicle(int vehicleId)
+- SQL: SELECT * FROM parking_sessions
+       WHERE vehicle_id = ? AND active = 0
+       AND exit_time IS NOT NULL
+       ORDER BY exit_time DESC LIMIT 1
+- Returns the MOST RECENT completed session for that vehicle
+- Returns null if this is the vehicle's first visit
+
+Why "active = 0 AND exit_time IS NOT NULL"?
+  We only want sessions that are fully completed (paid & exited).
+  Active sessions or sessions without exit time are excluded.
+
+
+STEP 2: Calculate Discount Tier (Service Layer)
+──────────────────────────────────────────────
+File: BillingService.java
+
+Added method: calculateLoyaltyDiscount(previousExitTime, currentEntryTime)
+- Calculates Duration between previous exit and current entry
+- Returns: 10.0 if ≤ 24 hours
+           5.0 if ≤ 7 days
+           2.0 if ≤ 30 days
+           0.0 otherwise
+
+Added method: getLoyaltyLabel(discountPercent)
+- Returns human-readable text:
+  "Returning within 24hrs" / "Returning within 7 days" / etc.
+
+Added method: applyDiscount(amount, discountPercent)
+- Math: amount - (amount × percent / 100)
+- Rounds to 2 decimal places
+
+
+STEP 3: Update Receipt Generation
+─────────────────────────────────
+File: BillingService.java → generateReceipt()
+
+Enhanced the receipt to show:
+  ║  Parking  : Rs. 120.00              ║
+  ║  Loyalty  : 10% (Returning within 24hrs) ║
+  ║  Saved    : Rs. 12.00               ║
+  ║  After    : Rs. 108.00              ║
+  ║  TOTAL    : Rs. 108.00              ║
+
+Only shows loyalty lines when discount > 0.
+
+
+STEP 4: Integrate into Mobile Bill Preview (WebServer)
+────────────────────────────────────────────────────
+File: WebServer.java → handleLookupSession()
+
+Added after fee calculation:
+  1. Find vehicle → get vehicle ID
+  2. Call sessionDAO.findLastCompletedByVehicle(vehicleId)
+  3. If previous session exists, call calculateLoyaltyDiscount()
+  4. Calculate discountAmount and discountedFee
+  5. Return in JSON: loyaltyDiscount, loyaltyLabel, discountAmount
+
+The bill preview now shows the discount BEFORE payment.
+
+
+STEP 5: Apply Discount at Checkout (WebServer)
+──────────────────────────────────────────────
+File: WebServer.java → handleCheckout()
+
+Same loyalty calculation as Step 4, but now:
+  - total = discountedFee + fineTotal (discount on fee only!)
+  - Receipt generated with the discount
+  - Transaction saved with discount field
+  - Exit PIN generated with discounted total
+
+
+STEP 6: Update Kiosk Exit Controller
+────────────────────────────────────
+File: KioskExitController.java
+
+Added fields: currentLoyaltyDiscount, currentDiscountedAmount
+
+In handleFind():
+  - Calls findLastCompletedByVehicle() for the vehicle
+  - Calculates discount tier
+  - Shows on bill: "Rs. 108 (10% loyalty → save Rs. 12)"
+
+In handleProceedToPayment():
+  - All payment amounts use currentDiscountedAmount (not currentAmount)
+
+In showCash() / showUPI():
+  - Payment labels show discounted amount
+  - UPI QR code encodes discounted amount
+
+In finalisePayment():
+  - Receipt generated with currentLoyaltyDiscount
+  - Transaction saved with discount
+  - Success screen shows "10% loyalty discount"
+
+
+STEP 7: Update Mobile UI
+────────────────────────
+File: exit.html — Added hidden loyaltyRow div
+File: app.js   — Shows/hides loyaltyRow based on discount > 0
+
+Bill screen: Purple row showing discount tier and saved amount
+Exit PIN screen: "10% off (-₹12.00)" in purple text
+
+
+STEP 8: Verify
+──────────────
+- mvn clean compile → BUILD SUCCESS
+- Park vehicle → checkout → re-park same plate → 10% discount shown
+- Discount applied to parking fee only, fines excluded

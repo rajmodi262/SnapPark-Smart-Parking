@@ -1,0 +1,146 @@
+════════════════════════════════════════════════════════════════
+  ENHANCEMENT 4: IMPLEMENTATION STEPS
+  Owner: Levinesh G R
+════════════════════════════════════════════════════════════════
+
+STEP 1: Add areCarSlotsFull() Method (Service Layer)
+───────────────────────────────────────────────────
+File: ParkingService.java
+
+Added method: areCarSlotsFull()
+- Uses Java Stream API to filter all slots
+- Counts total CAR-type slots
+- Counts AVAILABLE CAR-type slots
+- Returns true only when availableCarSlots == 0
+
+Logic:
+  List<ParkingSlot> allSlots = slotDAO.findAll();
+
+  long totalCarSlots = allSlots.stream()
+      .filter(s -> s.getType() == VehicleType.CAR)
+      .count();
+
+  long availableCarSlots = allSlots.stream()
+      .filter(s -> s.getType() == VehicleType.CAR
+                && s.getStatus() == SlotStatus.AVAILABLE)
+      .count();
+
+  return totalCarSlots > 0 && availableCarSlots == 0;
+
+This mirrors the existing areBikeSlotsFull() method pattern.
+
+
+STEP 2: Add Overflow Detection to Check-in API
+──────────────────────────────────────────────
+File: WebServer.java → handleCheckin()
+
+Added detection block AFTER the shared slot logic:
+
+  boolean isOverflowBooking = false;
+
+  if (vehicleType == CAR && targetSlot.type == SUV) {
+      if (!parkingService.areCarSlotsFull()) {
+          sendResponse(400, "Car slots are still available.");
+          return;  // Block — must use car slot first
+      }
+      isOverflowBooking = true;
+  }
+
+This ensures:
+  ✓ Only triggers when a CAR selects an SUV slot
+  ✓ Validates all car slots are full before allowing
+  ✓ If car slots have space, rejects with helpful error
+  ✓ Sets flag for JSON response
+
+After this block, the normal booking flow continues:
+  lockSlot → confirmBooking → startSession → respond
+
+No SHARED status needed (just AVAILABLE → OCCUPIED).
+
+
+STEP 3: Update JSON Response
+────────────────────────────
+File: WebServer.java → handleCheckin()
+
+Added "overflowSlot" field to the check-in response:
+
+  Before: "sharedSlot":false
+  After:  "sharedSlot":false,"overflowSlot":true
+
+  The mobile UI reads this field to show the overflow notice.
+
+
+STEP 4: Add Console Logging
+───────────────────────────
+File: WebServer.java
+
+Enhanced the check-in log line:
+  CHECK-IN: MH12AB1234 -> F1-12 [OVERFLOW CAR→SUV] PIN=4729
+
+This helps during demo/debugging to see overflow events.
+
+
+STEP 5: Update Mobile Slot Grid (Frontend)
+──────────────────────────────────────────
+File: app.js → renderSlotGrid()
+
+5a. Detect overflow condition:
+  const carSlotsFull = selectedType === 'CAR' && matchingAvail === 0;
+  const overflowSlots = carSlotsFull
+    ? slotsData.filter(s => s.type === 'SUV' && s.status === 'AVAILABLE').length
+    : 0;
+
+5b. Add "Overflow" to slot legend:
+  Shows orange dot with "Overflow" label in the legend bar.
+
+5c. Show orange banner:
+  "🚗→🅿️ Car slots full! You can use an SUV slot instead —
+   charged at Car rate, not SUV rate."
+
+
+STEP 6: Update Slot Cell Rendering
+──────────────────────────────────
+File: app.js → renderSlotCell()
+
+When isOverflow is true:
+  - CSS class: 'overflow-available' (clickable)
+  - Icon: 🟠 (orange circle)
+  - Badge: 🚗 (car emoji) in orange box
+  - Border: orange (#F97316) with glow effect
+  - NOT filtered out (visible even though type != selectedType)
+
+
+STEP 7: Update Click Binding
+────────────────────────────
+File: app.js
+
+Added .overflow-available to the click selector:
+  Before: '.slot-cell.available, .slot-cell.shared-available'
+  After:  '.slot-cell.available, .slot-cell.shared-available,
+           .slot-cell.overflow-available'
+
+
+STEP 8: Update Confirmation Screen
+──────────────────────────────────
+File: app.js → doCheckin()
+
+When data.overflowSlot is true:
+  Shows notice: "🚗 OVERFLOW — You are using an SUV slot at
+  Car rate. Park in the assigned slot only!"
+
+
+STEP 9: Verify Pricing
+──────────────────────
+No code change needed! BillingService.calculateFee() already
+uses vehicleType parameter (CAR), not slot type. So a car
+in an SUV slot is automatically billed at the car rate.
+
+  // Called with: calculateFee(VehicleType.CAR, entry, exit)
+  //              Not: calculateFee(VehicleType.SUV, ...)
+
+
+STEP 10: Verify
+───────────────
+- mvn clean compile → BUILD SUCCESS
+- Fill 5 car slots → 6th car sees orange SUV slots
+- Park car in SUV slot → billed at car rate ✓

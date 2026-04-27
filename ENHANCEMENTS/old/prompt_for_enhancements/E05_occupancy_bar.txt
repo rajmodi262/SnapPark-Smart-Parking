@@ -1,0 +1,15 @@
+ENHANCEMENT E05 — OCCUPANCY PROGRESS BAR
+Member: Aaditya Sinha
+=================================================
+
+PROMPT (Copy-paste this directly):
+
+"In my SnapPark project at c:\Users\Raj Modi\Pictures\snappark, add an occupancy progress bar to the mobile interface. In WebServer.java, modify the /api/slots GET endpoint handler to APPEND three additional JSON fields AFTER the existing slots array: \"totalSlots\", \"occupiedSlots\", and \"occupancyPercent\" (calculated as a rounded integer). Keep the existing response structure exactly the same — only ADD new fields at the end. Then in the mobile app.js (both snappark-web/app.js and src/main/resources/com/snappark/mobile/app.js), after receiving the slots data, render a small occupancy bar div at the top of the slot grid container showing the percentage with a colored bar (green under 50%, yellow 50-80%, red above 80%). Use inline styles.
+
+CRITICAL SAFETY RULES:
+- Do NOT change the existing JSON array format of slots. Only APPEND new fields to the JSON string after the array.
+- The frontend must gracefully handle the case where these fields don't exist (check if undefined before rendering the bar). This ensures the old frontend still works.
+- Do NOT touch entry.html, exit.html, style.css, or QR code logic.
+- Do NOT modify the check-in, check-out, or slot selection JavaScript logic.
+- Do NOT require any external API or library.
+- Test by running mvn clean compile to verify no build errors."

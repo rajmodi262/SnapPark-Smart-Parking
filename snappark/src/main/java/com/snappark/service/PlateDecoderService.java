@@ -9,7 +9,7 @@ public class PlateDecoderService {
 
     private static PlateDecoderService instance;
     private PlateDecoderService() {}
-    public static PlateDecoderService getInstance() {
+    public static synchronized PlateDecoderService getInstance() {
         if (instance == null) instance = new PlateDecoderService();
         return instance;
     }

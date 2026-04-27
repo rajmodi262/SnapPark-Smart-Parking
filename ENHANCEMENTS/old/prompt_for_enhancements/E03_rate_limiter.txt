@@ -1,0 +1,15 @@
+ENHANCEMENT E03 — API REQUEST RATE LIMITER
+Member: Raj Modi
+=================================================
+
+PROMPT (Copy-paste this directly):
+
+"In my SnapPark project at c:\Users\Raj Modi\Pictures\snappark, add a request rate limiter to WebServer.java. Create a private ConcurrentHashMap<String, long[]> called rateLimitMap where the key is the client IP and the value is an array [requestCount, windowStartTime]. Before processing any POST request (checkin, checkout, lookup-session), call a new method checkRateLimit(HttpExchange ex) that: extracts the client IP, checks if they've made more than 60 requests in the last 60 seconds. If exceeded, return a 429 status JSON response: {\"error\": \"Too many requests. Please wait 60 seconds.\"}. Reset the counter when the time window expires.
+
+CRITICAL SAFETY RULES:
+- Use a GENEROUS limit of 60 requests per minute (not 30) to avoid blocking normal usage.
+- Only rate-limit POST requests. Do NOT rate-limit GET requests (like /api/slots, /api/health) because the mobile app polls /api/slots frequently.
+- Wrap the rate limit check in try-catch — if anything fails, ALLOW the request through.
+- Do NOT modify any existing response formats, QR code logic, or mobile HTML/JS files.
+- Do NOT require any external API or library.
+- Test by running mvn clean compile to verify no build errors."

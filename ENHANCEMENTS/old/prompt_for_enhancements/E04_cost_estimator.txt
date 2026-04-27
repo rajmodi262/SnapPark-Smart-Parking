@@ -1,0 +1,15 @@
+ENHANCEMENT E04 — LIVE COST ESTIMATOR PREVIEW
+Member: Aaditya Sinha
+=================================================
+
+PROMPT (Copy-paste this directly):
+
+"In my SnapPark project at c:\Users\Raj Modi\Pictures\snappark, add a cost estimator feature. In WebServer.java, create a NEW GET endpoint /api/pricing that accepts a query parameter 'type' (BIKE/CAR/SUV) and returns the current surge pricing breakdown as JSON: {\"baseRate\": 50, \"timeMultiplier\": 1.3, \"occupancyMultiplier\": 1.15, \"effectiveRate\": 74.75, \"timeLabel\": \"Rush Hour +30%\", \"occupancyLabel\": \"High Demand +15%\", \"isSurge\": true}. Use the existing SurgePricingService.getBreakdown() method. Then in the mobile app.js (both snappark-web/app.js and src/main/resources/com/snappark/mobile/app.js), after the user selects a vehicle type in Step 1, fetch this endpoint and display a small styled info card showing 'Estimated: Rs.XX/hr' with the surge label. Display it as an informational card BELOW the vehicle type selector.
+
+CRITICAL SAFETY RULES:
+- This is a brand NEW endpoint — do NOT modify any existing endpoints.
+- The /api/pricing call must be in a try-catch in JavaScript — if it fails, just hide the card silently. Never block the check-in flow.
+- Do NOT modify the existing check-in, check-out, or slot selection logic.
+- Do NOT touch entry.html, exit.html, style.css, or any QR code logic.
+- Do NOT require any external API or library — use only existing Java services.
+- Test by running mvn clean compile to verify no build errors."

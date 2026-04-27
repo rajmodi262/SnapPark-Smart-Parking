@@ -1,0 +1,89 @@
+================================================================================
+  REPORT E07: LOT ALMOST FULL KIOSK BANNER
+  Member: Rohit | Role: JavaFX Desktop & Kiosk Developer
+================================================================================
+
+1. WHAT: Flashing red warning on kiosk when occupancy > 85%.
+2. WHY: Kiosk must warn staff and drivers about capacity limits.
+3. CODE: ParkingService threshold logic + JavaFX Timeline animation.
+
+================================================================================
+4. JAVA CONCEPTS EXPLAINED IN DETAIL
+================================================================================
+
+A) JavaFX Timeline Animation
+------------------------------
+Timeline is JavaFX's animation engine. It executes KeyFrames at
+specified time intervals, allowing smooth UI animations.
+
+    Timeline flash = new Timeline(
+        new KeyFrame(Duration.ZERO,
+            new KeyValue(warningLabel.opacityProperty(), 1.0)),
+        new KeyFrame(Duration.millis(500),
+            new KeyValue(warningLabel.opacityProperty(), 0.3))
+    );
+    flash.setCycleCount(Timeline.INDEFINITE);  // loop forever
+    flash.setAutoReverse(true);                // 1.0 → 0.3 → 1.0
+    flash.play();
+
+MIND MAP — Animation Lifecycle:
+    ┌──────────────────────────────────────┐
+    │  Timeline Animation                 │
+    │                                      │
+    │  t=0ms:    opacity = 1.0 (visible)  │
+    │  t=500ms:  opacity = 0.3 (dim)      │
+    │  t=1000ms: opacity = 1.0 (visible)  │ ← autoReverse
+    │  t=1500ms: opacity = 0.3 (dim)      │
+    │  ... repeats INDEFINITELY           │
+    │                                      │
+    │  Result: Label "flashes" on screen  │
+    └──────────────────────────────────────┘
+
+
+B) Threshold-Based Conditional Logic
+--------------------------------------
+    public boolean isNearFull() {
+        long total = getAllSlots().size();
+        long occupied = getOccupiedCount();
+        return (double) occupied / total >= 0.85;  // 85% threshold
+    }
+
+    public int getRemainingSlots() {
+        return (int) getAllSlots().stream()
+            .filter(s -> s.getStatus() == SlotStatus.AVAILABLE)
+            .count();
+    }
+
+MIND MAP — Threshold Decision:
+    ┌────────────────────────────────┐
+    │  Occupancy Check               │
+    │  occupied / total = ?          │
+    │                                │
+    │  < 85%  → Banner HIDDEN       │
+    │  >= 85% → Banner VISIBLE      │
+    │           "Only X spots left!" │
+    │           FLASHING RED         │
+    └────────────────────────────────┘
+
+================================================================================
+5. VISIBLE ON KIOSK SCREEN
+================================================================================
+    ┌══════════════════════════════════════════┐
+    │  ⚠️ WARNING: LOT ALMOST FULL            │
+    │  Only 4 spots remaining!                │  ← FLASHING
+    │  (red background, white bold text)      │
+    ├══════════════════════════════════════════┤
+    │  [Normal kiosk parking grid below]      │
+    └══════════════════════════════════════════┘
+
+
+================================================================================
+7. SAFETY GUARANTEES
+================================================================================
+  [?] KIOSK-ONLY change � does NOT touch mobile HTML/JS or WebServer endpoints
+  [?] Banner is HIDDEN by default � only shows when isNearFull() returns true
+  [?] isNearFull() wrapped in try-catch � if it fails, banner stays hidden
+  [?] No external API or library needed � uses only existing ParkingService
+  [?] Does NOT touch: QR codes, check-in/checkout flow, /api/slots endpoint
+
+================================================================================

@@ -1,0 +1,117 @@
+================================================================================
+  REPORT E03: API REQUEST RATE LIMITER
+  Member: Raj Modi | Role: Backend Java & API Developer
+================================================================================
+
+1. WHAT IS THIS ENHANCEMENT?
+-----------------------------
+We added a per-IP rate limiter that restricts each client to 30 API
+requests per 60-second window, preventing brute-force attacks.
+
+2. WHY: Prevents denial-of-service and API abuse. Industry standard.
+
+3. CODE CHANGES:
+   WebServer.java — ConcurrentHashMap<String, long[]> rateLimitMap
+                  — checkRateLimit(HttpExchange ex) method
+                  — ScheduledExecutorService for cleanup
+
+================================================================================
+4. JAVA CONCEPTS EXPLAINED IN DETAIL
+================================================================================
+
+A) ConcurrentHashMap — Thread-Safe Map
+----------------------------------------
+In a web server, multiple users send requests simultaneously on different
+threads. A regular HashMap is NOT thread-safe — two threads writing at
+the same time can corrupt the internal array, causing infinite loops.
+
+ConcurrentHashMap solves this using segment-level locking:
+  - The map is divided into 16 segments
+  - Each segment has its own lock
+  - Two threads can write to DIFFERENT segments simultaneously
+  - Only blocks when two threads write to the SAME segment
+
+    HashMap (UNSAFE):              ConcurrentHashMap (SAFE):
+    ┌──────────────────┐           ┌──────────────────┐
+    │  Single Lock     │           │  Segment 0 [Lock]│
+    │  ████████████████│           │  Segment 1 [Lock]│
+    │  ALL threads     │           │  Segment 2 [Lock]│
+    │  must wait       │           │  ...              │
+    │                  │           │  Segment 15[Lock]│
+    └──────────────────┘           └──────────────────┘
+    Thread 1 writes → blocks       Thread 1 writes Seg 0 → OK
+    Thread 2 waits                 Thread 2 writes Seg 5 → OK (parallel!)
+
+HOW WE USE IT:
+    ConcurrentHashMap<String, long[]> rateLimitMap = new ConcurrentHashMap<>();
+    // Key: client IP address (e.g., "192.168.1.5")
+    // Value: long[2] = { requestCount, windowStartTimeMs }
+
+
+B) System.currentTimeMillis() — Time Window Tracking
+------------------------------------------------------
+    long now = System.currentTimeMillis();
+    long[] record = rateLimitMap.get(clientIP);
+
+    if (record == null) {
+        rateLimitMap.put(clientIP, new long[]{1, now});  // first request
+    } else if (now - record[1] > 60000) {
+        record[0] = 1;       // reset count
+        record[1] = now;     // new window
+    } else {
+        record[0]++;         // increment count
+        if (record[0] > 30) return false;  // RATE LIMITED!
+    }
+
+
+C) ScheduledExecutorService — Background Cleanup
+--------------------------------------------------
+Over time, the rateLimitMap accumulates entries for IPs that no longer
+send requests. A scheduled task cleans up stale entries every 5 minutes.
+
+    ScheduledExecutorService cleaner = Executors.newSingleThreadScheduledExecutor();
+    cleaner.scheduleAtFixedRate(() -> {
+        long now = System.currentTimeMillis();
+        rateLimitMap.entrySet().removeIf(e -> now - e.getValue()[1] > 300000);
+    }, 5, 5, TimeUnit.MINUTES);
+
+MIND MAP — Rate Limiter Flow:
+    Incoming Request (IP: 192.168.1.5)
+                |
+        [Lookup IP in rateLimitMap]
+              /    \
+        Found?      Not Found?
+          |              |
+    [Time window     [Create: count=1]
+     expired?]       [Allow request ✓]
+       /    \
+     YES     NO
+      |       |
+   [Reset]  [count++ → count > 30?]
+   [count=1]    /        \
+   [Allow ✓]  YES         NO
+              |           |
+         [429 Error]  [Allow ✓]
+         "Too many
+          requests"
+
+================================================================================
+5. BENEFITS
+================================================================================
+  [✓] Prevents brute-force attacks on check-in/checkout APIs
+  [✓] Protects database from query floods
+  [✓] Demonstrates ConcurrentHashMap + ScheduledExecutor
+  [✓] Industry-standard security (Google/Twitter use same concept)
+
+
+================================================================================
+7. SAFETY GUARANTEES
+================================================================================
+  [?] Rate limit check wrapped in try-catch � if it fails, request is ALLOWED through
+  [?] Only limits POST requests � GET requests (slot polling) are NEVER blocked
+  [?] Generous limit of 60 req/min � normal usage will never trigger it
+  [?] No external API or library needed � uses only ConcurrentHashMap
+  [?] Does NOT touch: QR codes, mobile HTML/JS, check-in logic, checkout flow
+  [?] Stale entries auto-cleaned every 5 minutes � no memory leak
+
+================================================================================

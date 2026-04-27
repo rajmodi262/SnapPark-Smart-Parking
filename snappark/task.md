@@ -6,6 +6,7 @@
 ---
 
 ## Phase 1: Backend Foundation
+
 - [ ] 1.1 Create `model/Fine.java` — Fine data model
 - [ ] 1.2 Update `model/ParkingSession.java` — add phoneNumber, sessionPin, exitPin, paymentStatus
 - [ ] 1.3 Update `model/Transaction.java` — add fineAmount, exitPin, sessionPin, paymentMethod
@@ -21,17 +22,20 @@
 - [ ] 1.13 Update `Main.java` — start WebServer on app launch
 
 ## Phase 2: Mobile Web Pages (the phone experience)
+
 - [ ] 2.1 Create `resources/com/snappark/mobile/style.css` — premium dark mobile theme
 - [ ] 2.2 Create `resources/com/snappark/mobile/app.js` — frontend logic (API calls, slot grid, wizard)
 - [ ] 2.3 Create `resources/com/snappark/mobile/entry.html` — check-in wizard (3 steps)
 - [ ] 2.4 Create `resources/com/snappark/mobile/exit.html` — check-out + UPI + PIN
 
 ## Phase 3: Kiosk Redesign (JavaFX screens)
+
 - [ ] 3.1 Redesign `fxml/welcome.fxml` — unified entry QR + exit QR + PIN verify
 - [ ] 3.2 Update `controller/KioskWelcomeController.java` — QR generation, PIN verify, live stats
 - [ ] 3.3 Update `controller/ParkingGrid3DController.java` — add "Report Wrong Parking" action
 
 ## Phase 4: Integration & Polish
+
 - [ ] 4.1 Compile & fix all errors: `mvn clean compile`
 - [ ] 4.2 Test: Launch app, scan QR, complete entry flow on phone
 - [ ] 4.3 Test: Complete exit flow with payment simulation
@@ -39,6 +43,7 @@
 - [ ] 4.5 Test: PIN verification on kiosk
 
 ## Phase 5: Bonus Features (if time permits)
+
 - [ ] 5.1 Sound effects (beep, chime, alert)
 - [ ] 5.2 Barrier lift animation on successful exit
 - [ ] 5.3 EV charging + Accessible slot types
@@ -47,6 +52,7 @@
 ---
 
 ## Quick Reference — Key Decisions
+
 - **Unified kiosk screen**: YES (entry + exit + PIN on one screen)
 - **Surge pricing**: Time-based + Occupancy-based
 - **UPI payment**: Simulated (QR shown, "I Have Paid" button)

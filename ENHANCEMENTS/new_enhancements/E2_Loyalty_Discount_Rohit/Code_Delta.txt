@@ -1,0 +1,134 @@
+════════════════════════════════════════════════════════════════
+  ENHANCEMENT 2: CODE DELTA (Original vs Enhanced)
+  Owner: Raj Modi
+════════════════════════════════════════════════════════════════
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 1: SessionDAO.java — NEW METHOD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ORIGINAL: (method did not exist)
+
+ENHANCED:
+  public ParkingSession findLastCompletedByVehicle(int vehicleId) {
+      String sql = "SELECT * FROM parking_sessions "
+                 + "WHERE vehicle_id = ? AND active = 0 "
+                 + "AND exit_time IS NOT NULL "
+                 + "ORDER BY exit_time DESC LIMIT 1";
+      ps.setInt(1, vehicleId);
+      return mapRow(rs);
+  }
+
+  Purpose: Finds the vehicle's most recent COMPLETED visit.
+  Used to calculate how recently the driver last parked here.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 2: BillingService.java — NEW METHODS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ENHANCED — Discount Calculation:
+  public double calculateLoyaltyDiscount(
+      LocalDateTime previousExitTime,
+      LocalDateTime currentEntryTime) {
+
+      Duration gap = Duration.between(previousExitTime, currentEntryTime);
+      long hours = gap.toHours();
+      long days  = gap.toDays();
+
+      if (hours <= 24) return 10.0;   // 10% off
+      if (days  <= 7)  return 5.0;    //  5% off
+      if (days  <= 30) return 2.0;    //  2% off
+      return 0.0;                     //  0% off
+  }
+
+ENHANCED — Label:
+  public String getLoyaltyLabel(double discountPercent) {
+      if (discountPercent >= 10.0) return "Returning within 24hrs";
+      if (discountPercent >= 5.0)  return "Returning within 7 days";
+      if (discountPercent >= 2.0)  return "Returning within 30 days";
+      return "";
+  }
+
+ENHANCED — Apply:
+  public double applyDiscount(double amount, double discountPercent) {
+      return amount - (amount * discountPercent / 100);
+  }
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 3: BillingService.java — RECEIPT ENHANCED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ORIGINAL Receipt:
+  ║  Parking  : Rs. 120.00              ║
+  ║  TOTAL    : Rs. 120.00              ║
+
+ENHANCED Receipt (when discount > 0):
+  ║  Parking  : Rs. 120.00              ║
+  ║  Loyalty  : 10% (Returning within 24hrs) ║
+  ║  Saved    : Rs. 12.00               ║
+  ║  After    : Rs. 108.00              ║
+  ║  TOTAL    : Rs. 108.00              ║
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 4: WebServer.java — LOOKUP + CHECKOUT ENHANCED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ORIGINAL handleLookupSession():
+  double total = parkingFee + fineTotal;
+  // No discount applied
+
+ENHANCED handleLookupSession():
+  // ── LOYALTY DISCOUNT ──
+  double loyaltyDiscount = 0.0;
+  ParkingSession prevSession = sessionDAO
+      .findLastCompletedByVehicle(vehicle.getId());
+  if (prevSession != null) {
+      loyaltyDiscount = billingService.calculateLoyaltyDiscount(
+          prevSession.getExitTime(), session.getEntryTime());
+  }
+  double discountedFee = billingService.applyDiscount(parkingFee, loyaltyDiscount);
+  double total = discountedFee + fineTotal;  // Discount on fee only!
+
+  // JSON now includes:
+  "loyaltyDiscount": 10.0,
+  "loyaltyLabel": "Returning within 24hrs",
+  "discountAmount": 12.00,
+  "discountedFee": 108.00
+
+SAME PATTERN applied to handleCheckout().
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 5: KioskExitController.java — DISCOUNT DISPLAY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ORIGINAL:
+  private double currentAmount;
+  // All screens show: currentAmount
+
+ENHANCED:
+  private double currentAmount;
+  private double currentLoyaltyDiscount;     // NEW
+  private double currentDiscountedAmount;    // NEW
+  // All screens now show: currentDiscountedAmount
+  // Bill shows: "Rs. 108 (10% loyalty → save Rs. 12)"
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 6: exit.html — NEW LOYALTY ROW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ENHANCED — Added between Parking Fee and Fines:
+  <div class="bill-row" id="loyaltyRow" style="display:none">
+      <span id="loyaltyLabel" style="color:#A855F7">
+          🎫 Loyalty Discount
+      </span>
+      <span id="loyaltyValue" style="color:#A855F7;font-weight:700">
+          —
+      </span>
+  </div>
+
+  Hidden by default. JS shows it when loyaltyDiscount > 0.

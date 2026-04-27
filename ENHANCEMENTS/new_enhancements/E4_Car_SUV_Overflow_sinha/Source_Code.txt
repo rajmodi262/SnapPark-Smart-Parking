@@ -1,0 +1,193 @@
+════════════════════════════════════════════════════════════════
+  ENHANCEMENT 4: SOURCE CODE — Car-to-SUV Overflow Parking
+  Owner: Aaditya Sinha 
+  
+  These are the ACTUAL code files from the project.
+  Faculty can open these source files directly:
+════════════════════════════════════════════════════════════════
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 1: ParkingService.java  (NEW METHOD)
+Path: src/main/java/com/snappark/service/ParkingService.java
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    /**
+     * Check if all CAR-type slots are full (OCCUPIED, LOCKING, or SHARED).
+     * Used to determine if cars should be offered SUV slots for overflow.
+     */
+    public boolean areCarSlotsFull() {
+        List<ParkingSlot> allSlots = slotDAO.findAll();
+        long totalCarSlots = allSlots.stream()
+            .filter(s -> s.getType() == VehicleType.CAR)
+            .count();
+        long availableCarSlots = allSlots.stream()
+            .filter(s -> s.getType() == VehicleType.CAR && s.getStatus() == SlotStatus.AVAILABLE)
+            .count();
+        return totalCarSlots > 0 && availableCarSlots == 0;
+    }
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 2: WebServer.java  (OVERFLOW BLOCK in handleCheckin)
+Path: src/main/java/com/snappark/service/WebServer.java
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        // ── CAR → SUV OVERFLOW LOGIC ─────────────────────────────────
+        // If car slots are full, allow CAR to park in a vacant SUV slot
+        boolean isOverflowBooking = false;
+        if (vt == VehicleType.CAR && targetSlot != null && targetSlot.getType() == VehicleType.SUV) {
+            if (!parkingService.areCarSlotsFull()) {
+                sendResponse(ex, 400, "{\"error\":\"Car slots are still available. Please select a car slot.\"}");
+                return;
+            }
+            isOverflowBooking = true;
+        }
+        // ── END OVERFLOW LOGIC ───────────────────────────────────────
+
+        // ... rest of booking proceeds normally (lockSlot → confirmBooking)
+
+        // ═══ KEY INSIGHT: Rate uses vehicle type, NOT slot type ═══
+        // Get rate info — ALWAYS uses vehicle type (CAR rate), NOT slot type (SUV rate)
+        var breakdown = surgeService.getBreakdown(vt, parkingService.getOccupiedCount(),
+            parkingService.getAllSlots().size());
+        //                                        ^^
+        //                           vt = VehicleType.CAR (always the vehicle's type)
+        //                           So car in SUV slot = CAR rate ✓
+
+        // JSON response includes the new overflow flag:
+        String json = String.format(
+            "{\"success\":true,\"sessionId\":%d,\"sessionPin\":\"%s\"," +
+            "\"slotNumber\":\"%s\",\"floor\":%d,\"vehicleType\":\"%s\"," +
+            "\"plate\":\"%s\",\"phone\":\"%s\"," +
+            "\"entryTime\":\"%s\",\"rate\":%.0f,\"rateLabel\":\"%s\"," +
+            "\"isSurge\":%s,\"surgePercent\":%d," +
+            "\"sharedSlot\":%s,\"overflowSlot\":%s," +   // ← overflowSlot added
+            "\"fineWarning\":\"Park at %s ONLY. Wrong slot = Rs.%.0f fine\"}",
+            session.getId(), session.getSessionPin(),
+            slotNumber, slot != null ? slot.getFloor() : 0, vt.name(),
+            plate, phone,
+            session.getEntryTime().toString(), breakdown.effectiveRate,
+            breakdown.isSurge ? breakdown.timeLabel : "Standard",
+            breakdown.isSurge, breakdown.getSurgePercent(),
+            isSharedBooking, isOverflowBooking,   // ← both flags sent
+            slotNumber, fineService.getWrongParkingFineAmount()
+        );
+        sendResponse(ex, 200, json);
+        System.out.println("CHECK-IN: " + plate + " -> " + slotNumber
+            + (isSharedBooking ? " [SHARED]" : "")
+            + (isOverflowBooking ? " [OVERFLOW CAR→SUV]" : "")
+            + " PIN=" + session.getSessionPin());
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 3: app.js  (OVERFLOW DETECTION — in renderSlotGrid)
+Path: src/main/resources/com/snappark/mobile/app.js
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    // Check if car slots are full → enable overflow to SUV slots
+    const carSlotsFull = selectedType === 'CAR' && matchingAvail === 0;
+    const overflowSlots = carSlotsFull
+        ? slotsData.filter(s => s.type === 'SUV' && s.status === 'AVAILABLE').length
+        : 0;
+
+    // Add "Overflow" to slot legend
+    ${carSlotsFull ? '<span style="display:flex;align-items:center;gap:4px;">' +
+        '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;' +
+        'background:#F97316;"></span> Overflow</span>' : ''}
+
+    // Show overflow banner when car slots are full
+    if (carSlotsFull && overflowSlots > 0) {
+        html += `<div style="background:linear-gradient(135deg,#F9731622,#FB923C22);
+            border:1px solid #F97316;border-radius:10px;padding:10px 14px;
+            margin-bottom:14px;font-size:0.78rem;color:#FDBA74;">
+            🚗→🅿️ <strong>Car slots full!</strong> You can use an SUV slot instead
+            — charged at <span style="color:#22C55E;font-weight:700;">Car rate</span>,
+            not SUV rate. Select an <span style="color:#F97316;font-weight:700;">
+            orange</span> SUV slot below.
+        </div>`;
+    }
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 4: app.js  (OVERFLOW RENDERING — in renderSlotCell)
+Path: src/main/resources/com/snappark/mobile/app.js
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    // Check if car slots are full and this is an SUV slot available for overflow
+    const carSlotsFull = selectedType === 'CAR'
+        && slotsData.filter(s => s.type === 'CAR' && s.status === 'AVAILABLE').length === 0;
+    const isOverflow = carSlotsFull && selectedType === 'CAR'
+        && slot.type === 'SUV' && isAvail;
+
+    // CSS class and visuals for overflow slots
+    if (isOverflow) {
+        cls += ' overflow-available';           // Makes it clickable
+        icon = '🟠';                            // Orange circle
+        badge = '<span style="position:absolute;top:2px;right:2px;font-size:0.5rem;' +
+            'background:#F97316;color:#fff;border-radius:4px;padding:1px 3px;">🚗</span>';
+        extraStyle = 'border-color:#F97316;box-shadow:0 0 8px #F9731655;';
+    }
+
+    // These lines ensure overflow slots are NOT filtered out:
+    if (isOcc && !isShareable && !isOverflow)    cls += ' occupied';
+    if (filtered && !isShareable && !isOverflow)  cls += ' filtered-out';
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 5: app.js  (OVERFLOW CONFIRMATION — in doCheckin)
+Path: src/main/resources/com/snappark/mobile/app.js
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        // Show shared/overflow slot notice on confirmation screen
+        if (data.sharedSlot) {
+            el('fineWarningText').textContent =
+                '🏍️ SHARED SLOT — You are sharing a Car slot with another bike. Park carefully!';
+        } else if (data.overflowSlot) {
+            el('fineWarningText').textContent =
+                '🚗 OVERFLOW — You are using an SUV slot at Car rate. Park in the assigned slot only!';
+        } else {
+            el('fineWarningText').textContent = data.fineWarning;
+        }
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 6: app.js  (CLICK BINDING — includes overflow class)
+Path: src/main/resources/com/snappark/mobile/app.js
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    // Bind click events (including shared + overflow slots)
+    container.querySelectorAll(
+        '.slot-cell.available:not(.filtered-out), ' +
+        '.slot-cell.shared-available:not(.filtered-out), ' +
+        '.slot-cell.overflow-available:not(.filtered-out)'    // ← NEW
+    ).forEach(cell => {
+        cell.addEventListener('click', () => selectSlot(cell));
+    });
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHY NO PRICING CODE CHANGE? (Important for faculty explanation)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The BillingService.calculateFee() method accepts VehicleType as
+a parameter — NOT the slot type. This means:
+
+  // In BillingService.java:
+  public double calculateFee(VehicleType type, LocalDateTime entry, LocalDateTime exit) {
+      // ...
+      SurgePricingService.PriceBreakdown breakdown = surgeService.getBreakdown(
+          type,  // ← This is CAR (from the vehicle), not SUV (from the slot)
+          ...
+      );
+      return Math.round(hours * breakdown.effectiveRate * 100.0) / 100.0;
+  }
+
+  // Called in WebServer with:
+  billingService.calculateFee(vehicle.getVehicleType(), entry, exit);
+  //                          ^^^^^^^^^^^^^^^^^^^^^^
+  //                          Always returns CAR for a car vehicle,
+  //                          regardless of which slot it's parked in.
+
+This is a DESIGN PATTERN choice — vehicle-type-based pricing
+ensures fair billing even when overflow occurs. No code change needed!

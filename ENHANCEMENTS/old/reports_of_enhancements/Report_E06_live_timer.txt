@@ -1,0 +1,96 @@
+================================================================================
+  REPORT E06: LIVE PARKING DURATION TIMER
+  Member: Aaditya Sinha | Role: Frontend & UI/UX Developer
+================================================================================
+
+1. WHAT: Live ticking timer on phone after check-in (00:15:32).
+2. WHY: Users want to know how long they've been parked.
+3. CODE: Java returns entryTime (LocalDateTime) + JS setInterval.
+
+================================================================================
+4. JAVA CONCEPTS EXPLAINED IN DETAIL
+================================================================================
+
+A) LocalDateTime — Java's Modern Date/Time API (java.time)
+------------------------------------------------------------
+Before Java 8, dates used java.util.Date (mutable, confusing).
+Java 8 introduced java.time — immutable, thread-safe, and clear.
+
+    LocalDateTime now = LocalDateTime.now();
+    // Result: 2026-04-27T14:30:15.123
+
+KEY CLASSES:
+    LocalDate      — date only (2026-04-27)
+    LocalTime      — time only (14:30:15)
+    LocalDateTime  — both (2026-04-27T14:30:15)
+    Duration       — time between two instants
+    Instant        — machine timestamp (epoch milliseconds)
+
+WHY LocalDateTime and NOT Date?
+    java.util.Date:
+      [✗] Mutable — another thread can change it mid-use
+      [✗] Month is 0-indexed (January = 0, confusing!)
+      [✗] Not thread-safe
+
+    java.time.LocalDateTime:
+      [✓] Immutable — once created, cannot be changed
+      [✓] Month is 1-indexed (January = 1, intuitive!)
+      [✓] Thread-safe by design
+
+
+B) ISO 8601 Format — Universal Date Standard
+----------------------------------------------
+When we send dates over HTTP APIs, we use ISO 8601 format:
+    "2026-04-27T14:30:15"
+
+This is universally parseable by JavaScript, Python, Go, etc.
+LocalDateTime.toString() produces this format automatically.
+
+MIND MAP — Date Flow Between Java and JavaScript:
+    ┌─────────────────────────────────────────┐
+    │  Java Backend                           │
+    │  LocalDateTime.now().toString()         │
+    │  → "2026-04-27T14:30:15"               │
+    │           |                             │
+    │    [Sent as JSON string]                │
+    │           ↓                             │
+    │  JavaScript Frontend                    │
+    │  new Date("2026-04-27T14:30:15")        │
+    │  → Date object                          │
+    │           |                             │
+    │  [Calculate elapsed time]               │
+    │  elapsed = Date.now() - entryDate       │
+    │           |                             │
+    │  [Format as HH:MM:SS]                   │
+    │  → "00:15:32"                           │
+    │           |                             │
+    │  [setInterval(1000) — update every sec] │
+    │  → Timer ticks live on screen           │
+    └─────────────────────────────────────────┘
+
+================================================================================
+5. VISIBLE ON SCREEN
+================================================================================
+  After check-in, phone shows:
+  ┌──────────────────────────┐
+  │     ✅ CHECK-IN SUCCESS  │
+  │     PIN: 4 7 2 1         │
+  │                          │
+  │     ⏱️ Parked:           │
+  │     00:15:32             │
+  │     (ticking every sec)  │
+  │                          │
+  │     Slot: B-03 | Floor 1 │
+  └──────────────────────────┘
+
+
+================================================================================
+7. SAFETY GUARANTEES
+================================================================================
+  [?] Only ADDS 'entryTime' field to check-in response � no fields removed
+  [?] Frontend checks if data.entryTime exists � if missing, no timer shown
+  [?] Timer is purely visual � does NOT affect check-in/checkout logic
+  [?] No external API or library needed � uses only LocalDateTime.toString()
+  [?] Does NOT touch: QR codes, entry.html, exit.html, slot selection
+
+================================================================================

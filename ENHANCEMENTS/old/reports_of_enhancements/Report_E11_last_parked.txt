@@ -1,0 +1,131 @@
+================================================================================
+  REPORT E11: LAST PARKED VEHICLE INFO ENDPOINT
+  Member: Levinesh GR | Role: Database Architect & System Integrator
+================================================================================
+
+1. WHAT: Add /api/last-parked returning the most recently checked-in vehicle.
+2. WHY: Kiosk operators can quickly verify the latest entry without scrolling.
+3. CODE: JDBC PreparedStatement + ORDER BY entry_time DESC LIMIT 1 + HashMap.
+
+================================================================================
+4. JAVA CONCEPTS EXPLAINED IN DETAIL
+================================================================================
+
+A) SQL ORDER BY + LIMIT — Fetching the Latest Row
+---------------------------------------------------
+ORDER BY sorts results; LIMIT restricts how many rows are returned.
+Combined, they let us fetch "the most recent" record efficiently.
+
+    SELECT v.plate_number, v.type, s.slot_number, s.floor,
+           ps.entry_time
+    FROM parking_sessions ps
+    JOIN vehicles v ON ps.vehicle_id = v.id
+    JOIN parking_slots s ON ps.slot_id = s.id
+    WHERE ps.exit_time IS NULL
+    ORDER BY ps.entry_time DESC
+    LIMIT 1;
+
+BREAKDOWN:
+    ORDER BY ps.entry_time DESC  → newest first (descending)
+    LIMIT 1                      → return only the top row
+
+WHY "DESC" and not "ASC"?
+    ASC  = Ascending  (oldest first: 10:00, 11:00, 12:00)
+    DESC = Descending (newest first: 12:00, 11:00, 10:00)
+    We want the LATEST, so DESC puts it at the top, then LIMIT 1 grabs it.
+
+MIND MAP — ORDER BY + LIMIT:
+    Raw data (unsorted):
+    ┌────────────────────────────────────────────┐
+    │  MH12AB34  │ CAR  │ B-03 │ 10:15          │
+    │  DL05XY99  │ SUV  │ C-01 │ 14:32          │ ← newest
+    │  KA09ZZ12  │ BIKE │ A-07 │ 11:45          │
+    └────────────────────────────────────────────┘
+
+    After ORDER BY entry_time DESC:
+    ┌────────────────────────────────────────────┐
+    │  DL05XY99  │ SUV  │ C-01 │ 14:32          │ ← row 1
+    │  KA09ZZ12  │ BIKE │ A-07 │ 11:45          │
+    │  MH12AB34  │ CAR  │ B-03 │ 10:15          │
+    └────────────────────────────────────────────┘
+
+    After LIMIT 1:
+    ┌────────────────────────────────────────────┐
+    │  DL05XY99  │ SUV  │ C-01 │ 14:32          │ ← only this!
+    └────────────────────────────────────────────┘
+
+
+B) JDBC PreparedStatement — Parameterized Queries
+---------------------------------------------------
+PreparedStatement prevents SQL injection and improves performance.
+
+    String sql = "SELECT ... FROM parking_sessions WHERE exit_time IS NULL "
+               + "ORDER BY entry_time DESC LIMIT 1";
+
+    try (Connection conn = db.getConnection();
+         PreparedStatement ps = conn.prepareStatement(sql);
+         ResultSet rs = ps.executeQuery()) {
+
+        if (rs.next()) {
+            String plate = rs.getString("plate_number");
+            String type  = rs.getString("type");
+            String slot  = rs.getString("slot_number");
+            String time  = rs.getString("entry_time");
+        }
+    }
+
+WHY PreparedStatement and not Statement?
+    Statement:         Concatenates user input → SQL injection risk!
+    PreparedStatement: Uses placeholders (?) → input is escaped safely
+
+    // DANGEROUS (Statement):
+    stmt.executeQuery("SELECT * FROM users WHERE name='" + input + "'");
+    // If input = "'; DROP TABLE users;--" → TABLE DELETED!
+
+    // SAFE (PreparedStatement):
+    ps = conn.prepareStatement("SELECT * FROM users WHERE name=?");
+    ps.setString(1, input);  // input is escaped, injection blocked
+
+
+C) HashMap for JSON Construction — Building the Response
+---------------------------------------------------------
+    HashMap<String, Object> result = new HashMap<>();
+    result.put("plate", plate);
+    result.put("type", type);
+    result.put("slot", slot);
+    result.put("entry_time", time);
+
+    // Serialized to JSON:
+    // {"plate":"MH12AB34","type":"CAR","slot":"B-03","entry_time":"14:32"}
+
+WHY HashMap<String, Object> and not HashMap<String, String>?
+    Object allows mixed types: Strings, Integers, Booleans, nested Maps.
+    If all values were String, we couldn't include numbers or booleans.
+
+
+================================================================================
+5. VISIBLE ON SCREEN
+================================================================================
+  Open /api/last-parked in browser:
+  ┌──────────────────────────────────────────────────────────────────┐
+  │  {                                                              │
+  │    "plate": "MH12AB1234",                                      │
+  │    "type": "CAR",                                               │
+  │    "slot": "B-03",                                              │
+  │    "floor": 1,                                                  │
+  │    "entry_time": "2026-04-27 14:32:05"                         │
+  │  }                                                              │
+  └──────────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+7. SAFETY GUARANTEES
+================================================================================
+  [✓] Brand NEW endpoint /api/last-parked — no existing endpoint modified
+  [✓] Entire handler wrapped in try-catch — returns empty JSON on failure
+  [✓] If no active sessions exist, returns {"message":"No active sessions"}
+  [✓] No external API or library needed — uses only JDBC and HashMap
+  [✓] Does NOT touch: QR codes, mobile HTML/JS, check-in/checkout flow
+  [✓] GET-only endpoint — no database writes, zero side effects
+
+================================================================================

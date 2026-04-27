@@ -1,0 +1,14 @@
+ENHANCEMENT E08 — COLOR-CODED DURATION SLOTS ON KIOSK
+Member: Rohit
+=================================================
+
+PROMPT (Copy-paste this directly):
+
+"In my SnapPark project at c:\Users\Raj Modi\Pictures\snappark, add color-coded duration indicators to the kiosk parking grid. In SessionDAO.java, add a method Map<Integer, Long> getActiveSessionDurations() that returns a map of slotId to parked-duration-in-minutes for all active sessions using Duration.between(entryTime, now). Wrap the entire method in try-catch and return an empty HashMap if anything fails. Then in KioskParkController.java (or ParkingGrid3DController.java, whichever renders the slot grid), after loading slots, also load the duration map inside try-catch. For each occupied slot, if a duration exists in the map, apply a CSS style class based on duration: 'duration-short' (green, <60 min), 'duration-medium' (yellow/orange, 60-180 min), or 'duration-long' (red, >180 min). If the duration map is empty or fails, just show slots in their normal default colors. Add the corresponding CSS classes to dark-theme.css. Add a small legend label at the bottom of the grid.
+
+CRITICAL SAFETY RULES:
+- If getActiveSessionDurations() fails or returns empty, the kiosk grid looks exactly like it does now — default colors. No visual breakage.
+- This is KIOSK-ONLY — do NOT touch any mobile HTML/JS files, WebServer endpoints, or QR code logic.
+- Do NOT modify the slot data model or the /api/slots endpoint.
+- Do NOT require any external API or library.
+- Test by running mvn clean compile to verify no build errors."

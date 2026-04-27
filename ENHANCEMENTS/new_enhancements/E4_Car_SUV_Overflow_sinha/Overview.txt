@@ -1,0 +1,66 @@
+════════════════════════════════════════════════════════════════
+  ENHANCEMENT 4: CAR-TO-SUV OVERFLOW PARKING
+  Owner: Levinesh G R
+════════════════════════════════════════════════════════════════
+
+WHAT IS THIS?
+─────────────
+When all CAR parking slots are full, the system allows
+cars to park in vacant SUV slots. The car is charged at
+the CAR rate, not the more expensive SUV rate.
+
+WHY IS THIS NEEDED?
+───────────────────
+In peak hours, car slots fill up first while SUV slots
+may remain empty. Instead of rejecting car drivers, we
+use the larger SUV slots to accommodate them — while
+keeping the price fair (car rate, not SUV rate).
+
+HOW IT WORKS (Simple Explanation)
+─────────────────────────────────
+1. User selects CAR as vehicle type
+2. System checks: "Are all 5 car slots full?"
+3. If YES → SUV slots light up in ORANGE on the mobile UI
+4. User selects an orange SUV slot
+5. Car parks in the SUV slot (normal AVAILABLE → OCCUPIED)
+6. At checkout, fee is calculated using CAR rate (not SUV rate)
+7. When car exits → SUV slot returns to AVAILABLE
+
+KEY RULES
+─────────
+• Only allowed when ALL car slots are full
+• If car slots are available, system blocks SUV slot selection
+• 1 car per SUV slot (no sharing — unlike E1 bikes)
+• Billing uses VEHICLE TYPE (Car), NOT slot type (SUV)
+• Normal slot release on exit (OCCUPIED → AVAILABLE)
+
+DIFFERENCE FROM E1 (SHARED PARKING)
+────────────────────────────────────
+  E1 Shared Parking:              E4 Overflow Parking:
+  • 2 bikes in 1 car slot         • 1 car in 1 SUV slot
+  • Uses SHARED status            • Uses normal OCCUPIED status
+  • Bike slots must be full       • Car slots must be full
+  • Purple UI color               • Orange UI color
+  • State: AVAILABLE→SHARED→OCC   • State: AVAILABLE→OCCUPIED
+
+PRICING GUARANTEE
+─────────────────
+The billing is VEHICLE-TYPE-BASED, not SLOT-TYPE-BASED:
+  BillingService.calculateFee(vehicleType, entry, exit)
+                               ^^^^^^^^^^^
+  This always uses the vehicle's type (CAR), so even when
+  parked in an SUV slot, the rate remains the car rate.
+
+JAVA CONCEPTS USED
+──────────────────
+• Stream API for filtering and counting slots
+• Boolean flag pattern (isOverflowBooking)
+• Defensive programming (validate car slots full before allowing)
+• JSON response extension (backward-compatible new field)
+• Console logging for debugging
+
+FILES MODIFIED
+──────────────
+1. ParkingService.java  — Added areCarSlotsFull()
+2. WebServer.java       — Added overflow detection in check-in
+3. app.js (mobile)      — Orange UI badges and banner

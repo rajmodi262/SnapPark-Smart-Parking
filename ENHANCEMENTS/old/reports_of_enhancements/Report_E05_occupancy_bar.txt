@@ -1,0 +1,85 @@
+================================================================================
+  REPORT E05: OCCUPANCY PROGRESS BAR
+  Member: Aaditya Sinha | Role: Frontend & UI/UX Developer
+================================================================================
+
+1. WHAT: Animated color-coded occupancy bar on mobile slot screen.
+2. WHY: Instant visual capacity indicator for users.
+3. CODE: Java adds occupancy% to /api/slots + JS renders bar.
+
+================================================================================
+4. JAVA CONCEPTS EXPLAINED IN DETAIL
+================================================================================
+
+A) Integer Arithmetic & Percentage Calculation
+-----------------------------------------------
+    int total = allSlots.size();               // 30
+    int occupied = occupiedSlots.size();        // 12
+    int percent = (int) Math.round((double) occupied / total * 100);  // 40%
+
+WHY cast to (double)?
+  - In Java, int / int = int (integer division, truncates!)
+  - 12 / 30 = 0 (WRONG!)
+  - (double) 12 / 30 = 0.4 (correct)
+  - 0.4 * 100 = 40.0
+  - Math.round(40.0) = 40
+
+MIND MAP — Java Division Pitfall:
+    ┌─────────────────────────────────┐
+    │  INTEGER DIVISION TRAP          │
+    │                                 │
+    │  12 / 30 = 0      ← WRONG!     │
+    │  (int / int = int, truncated)   │
+    │                                 │
+    │  (double)12 / 30 = 0.4  ← OK   │
+    │  0.4 * 100 = 40.0              │
+    │  Math.round(40.0) = 40  ← OK   │
+    └─────────────────────────────────┘
+
+
+B) JSON Response Modification — Backward Compatibility
+-------------------------------------------------------
+We add NEW fields to the existing /api/slots response without removing
+or changing existing fields. This ensures the old frontend still works.
+
+BEFORE:  { "slots": [ ... ] }
+AFTER:   { "slots": [ ... ], "totalSlots": 30, "occupiedSlots": 12, "occupancyPercent": 40 }
+
+The old frontend ignores fields it doesn't know about — this is called
+BACKWARD COMPATIBILITY. It's a critical principle in API design.
+
+MIND MAP — API Evolution:
+    ┌───────────────────────────────────────────┐
+    │  API Response v1.0        v2.0 (enhanced) │
+    │  ──────────────────  ──────────────────── │
+    │  { "slots": [...] }  { "slots": [...],    │
+    │                        "totalSlots": 30,  │
+    │                        "occupiedSlots": 12,│
+    │                        "occupancyPercent": 40 }│
+    │                                           │
+    │  Old frontend: reads "slots" → works ✓    │
+    │  New frontend: reads all fields → works ✓ │
+    └───────────────────────────────────────────┘
+
+================================================================================
+5. VISIBLE ON SCREEN
+================================================================================
+    ┌──────────────────────────────┐
+    │  🅿️ Parking: 40% Full       │
+    │  ████████░░░░░░░░░░░░░░     │
+    │  (Green — plenty of room)   │
+    └──────────────────────────────┘
+    At 75%: bar turns YELLOW
+    At 90%: bar turns RED
+
+
+================================================================================
+7. SAFETY GUARANTEES
+================================================================================
+  [?] Only APPENDS new fields to existing JSON � does NOT change existing format
+  [?] Frontend checks if field exists before rendering � graceful degradation
+  [?] Old frontend that doesn't know about new fields still works perfectly
+  [?] No external API or library needed � uses only integer arithmetic
+  [?] Does NOT touch: QR codes, entry.html, exit.html, check-in/checkout logic
+
+================================================================================

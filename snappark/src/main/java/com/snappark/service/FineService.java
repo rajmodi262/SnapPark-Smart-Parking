@@ -14,7 +14,7 @@ public class FineService {
     private static final double UNAUTHORIZED_EXIT_FINE = 500.0;
 
     private FineService() {}
-    public static FineService getInstance() {
+    public static synchronized FineService getInstance() {
         if (instance == null) instance = new FineService();
         return instance;
     }

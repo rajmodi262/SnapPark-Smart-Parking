@@ -1,8 +1,25 @@
-t=2026-04-20T04:26:56+0530 lvl=info msg="no configuration paths supplied"
-t=2026-04-20T04:26:56+0530 lvl=info msg="using configuration at default config path" path="C:\\Users\\Raj Modi\\AppData\\Local/ngrok/ngrok.yml"
-t=2026-04-20T04:26:56+0530 lvl=info msg="open config file" path="C:\\Users\\Raj Modi\\AppData\\Local\\ngrok\\ngrok.yml" err=nil
-t=2026-04-20T04:26:56+0530 lvl=info msg="FIPS 140 mode" enabled=false
-t=2026-04-20T04:26:56+0530 lvl=info msg="starting web service" obj=web addr=127.0.0.1:4040 allow_hosts=[]
-t=2026-04-20T04:26:56+0530 lvl=info msg="client session established" obj=tunnels.session
-t=2026-04-20T04:26:56+0530 lvl=info msg="tunnel session started" obj=tunnels.session
-t=2026-04-20T04:26:56+0530 lvl=info msg="started tunnel" obj=tunnels name=command_line addr=http://localhost:8080 url=https://flinch-padding-powdery.ngrok-free.dev
+t=2026-04-27T12:00:12+0530 lvl=info msg="no configuration paths supplied"
+t=2026-04-27T12:00:12+0530 lvl=info msg="using configuration at default config path" path="C:\\Users\\Raj Modi\\AppData\\Local/ngrok/ngrok.yml"
+t=2026-04-27T12:00:12+0530 lvl=info msg="open config file" path="C:\\Users\\Raj Modi\\AppData\\Local\\ngrok\\ngrok.yml" err=nil
+t=2026-04-27T12:00:12+0530 lvl=info msg="FIPS 140 mode" enabled=false
+t=2026-04-27T12:00:12+0530 lvl=info msg="starting web service" obj=web addr=127.0.0.1:4040 allow_hosts=[]
+t=2026-04-27T12:00:12+0530 lvl=info msg="client session established" obj=tunnels.session
+t=2026-04-27T12:00:12+0530 lvl=info msg="tunnel session started" obj=tunnels.session
+t=2026-04-27T12:00:13+0530 lvl=info msg="started tunnel" obj=tunnels name=command_line addr=http://localhost:8080 url=https://flinch-padding-powdery.ngrok-free.dev
+t=2026-04-27T12:00:13+0530 lvl=info msg="update available" obj=updater
+t=2026-04-27T12:00:13+0530 lvl=info msg=start pg=/api/tunnels id=b3a72144e46a57e8
+t=2026-04-27T12:00:13+0530 lvl=info msg=end pg=/api/tunnels id=b3a72144e46a57e8 status=200 dur=528.8µs
+t=2026-04-27T12:00:28+0530 lvl=info msg="join connections" obj=join id=db181ff2856f l=[::1]:8080 r=122.15.186.200:58640
+t=2026-04-27T12:00:28+0530 lvl=info msg="join connections" obj=join id=95b58596bb78 l=[::1]:8080 r=122.15.186.200:58640
+t=2026-04-27T12:12:28+0530 lvl=info msg="join connections" obj=join id=0a5208346c91 l=[::1]:8080 r=122.15.186.200:60544
+t=2026-04-27T12:12:28+0530 lvl=info msg="join connections" obj=join id=5e4dcc0648a4 l=[::1]:8080 r=122.15.186.200:60544
+t=2026-04-27T12:12:28+0530 lvl=info msg="join connections" obj=join id=c3a0a9e25574 l=[::1]:8080 r=122.15.186.200:60544
+t=2026-04-27T12:12:35+0530 lvl=info msg="join connections" obj=join id=e2a03dcde789 l=[::1]:8080 r=122.15.186.200:39088
+t=2026-04-27T12:15:40+0530 lvl=info msg="join connections" obj=join id=da9ee11035a9 l=[::1]:8080 r=122.15.186.200:39088
+t=2026-04-27T12:15:54+0530 lvl=info msg="join connections" obj=join id=13d81f9908cb l=[::1]:8080 r=122.15.186.200:45178
+t=2026-04-27T12:15:58+0530 lvl=info msg="join connections" obj=join id=22c21714e364 l=[::1]:8080 r=122.15.186.200:37554
+t=2026-04-27T12:16:06+0530 lvl=info msg="join connections" obj=join id=bb7b1bfdf9ad l=[::1]:8080 r=122.15.186.200:59126
+t=2026-04-27T12:16:07+0530 lvl=info msg="join connections" obj=join id=4d2b58378c86 l=[::1]:8080 r=122.15.186.200:59132
+t=2026-04-27T12:16:07+0530 lvl=info msg="join connections" obj=join id=487412b0905e l=[::1]:8080 r=122.15.186.200:59132
+t=2026-04-27T12:17:09+0530 lvl=info msg="join connections" obj=join id=085b76bf4c86 l=[::1]:8080 r=122.15.186.200:39648
+t=2026-04-27T12:17:52+0530 lvl=info msg="join connections" obj=join id=e9985f2fb527 l=[::1]:8080 r=122.15.186.200:39088

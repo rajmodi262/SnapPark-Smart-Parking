@@ -4,6 +4,20 @@
    ═══════════════════════════════════════════════════════════════ */
 
 const API = window.location.origin;
+const API_KEY = new URLSearchParams(window.location.search).get('apiKey') || '';
+
+// Helper: POST with API key auth
+function authPost(url, body) {
+    return fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': API_KEY,
+            'ngrok-skip-browser-warning': 'true'
+        },
+        body: JSON.stringify(body)
+    });
+}
 
 // ── State ──
 let selectedType   = 'CAR';
@@ -179,12 +193,35 @@ function goToStep(n) {
 
 // ── Slot Grid ──
 async function loadSlotGrid() {
+    const gridEl = document.getElementById('slotGrid');
     try {
+        console.log('[SnapPark] Fetching slots from:', API + '/api/slots');
         const res = await fetch(`${API}/api/slots`);
-        slotsData = await res.json();
+        console.log('[SnapPark] Slots response status:', res.status);
+        if (!res.ok) {
+            const errText = await res.text();
+            console.error('[SnapPark] Slots error response:', errText);
+            gridEl.innerHTML = `<div class="alert alert-error">❌ Server error (${res.status}). Retry in a moment.</div>`;
+            return;
+        }
+        const text = await res.text();
+        console.log('[SnapPark] Slots raw response length:', text.length);
+        try {
+            slotsData = JSON.parse(text);
+        } catch (parseErr) {
+            console.error('[SnapPark] JSON parse error:', parseErr, 'Raw:', text.substring(0, 200));
+            gridEl.innerHTML = '<div class="alert alert-error">❌ Invalid data from server. Please try again.</div>';
+            return;
+        }
+        console.log('[SnapPark] Parsed slots count:', slotsData.length);
+        if (!Array.isArray(slotsData) || slotsData.length === 0) {
+            gridEl.innerHTML = '<div class="alert alert-warning">⚠️ No parking slots found. The lot may not be configured yet.</div>';
+            return;
+        }
         renderSlotGrid();
     } catch (e) {
-        document.getElementById('slotGrid').innerHTML = '<div class="alert alert-error">Failed to load slots</div>';
+        console.error('[SnapPark] Network error loading slots:', e);
+        gridEl.innerHTML = `<div class="alert alert-error">❌ Cannot reach server. Check your connection.<br><small style="color:var(--text-muted);font-size:0.7rem">API: ${API}</small></div>`;
     }
 }
 
@@ -197,7 +234,44 @@ function renderSlotGrid() {
         floors[slot.floor].push(slot);
     });
 
-    let html = '';
+    // Count matching available slots
+    const matchingAvail = slotsData.filter(s => s.type === selectedType && s.status === 'AVAILABLE').length;
+    const totalMatch = slotsData.filter(s => s.type === selectedType).length;
+
+    // Check if bike slots are full → enable shared slot mode
+    const bikeSlotsFull = selectedType === 'BIKE' && matchingAvail === 0;
+    const sharedSlots = bikeSlotsFull ? slotsData.filter(s => s.type === 'CAR' && (s.status === 'AVAILABLE' || s.status === 'SHARED')).length : 0;
+
+    // Check if car slots are full → enable overflow to SUV slots
+    const carSlotsFull = selectedType === 'CAR' && matchingAvail === 0;
+    const overflowSlots = carSlotsFull ? slotsData.filter(s => s.type === 'SUV' && s.status === 'AVAILABLE').length : 0;
+
+    // Slot legend + count
+    let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;gap:14px;font-size:0.75rem;color:var(--text-secondary);">
+            <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--accent-green);"></span> Open</span>
+            <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--accent-red);"></span> Taken</span>
+            <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--accent-amber);"></span> Held</span>
+            ${bikeSlotsFull ? '<span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#A855F7;"></span> Shared</span>' : ''}
+            ${carSlotsFull ? '<span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#F97316;"></span> Overflow</span>' : ''}
+        </div>
+        <div style="font-size:0.75rem;font-weight:700;color:var(--accent-cyan);">${matchingAvail}/${totalMatch} ${selectedType} slots free</div>
+    </div>`;
+
+    // Show shared slot banner when bike slots are full
+    if (bikeSlotsFull && sharedSlots > 0) {
+        html += `<div style="background:linear-gradient(135deg,#7C3AED22,#A855F722);border:1px solid #A855F7;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:0.78rem;color:#C4B5FD;">
+            🏍️×2 <strong>Bike slots full!</strong> You can share a Car slot — 2 bikes fit in 1 car space. Select a <span style="color:#A855F7;font-weight:700;">purple</span> or <span style="color:var(--accent-green);font-weight:700;">green</span> car slot below.
+        </div>`;
+    }
+
+    // Show overflow banner when car slots are full
+    if (carSlotsFull && overflowSlots > 0) {
+        html += `<div style="background:linear-gradient(135deg,#F9731622,#FB923C22);border:1px solid #F97316;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:0.78rem;color:#FDBA74;">
+            🚗→🅿️ <strong>Car slots full!</strong> You can use an SUV slot instead — charged at <span style="color:#22C55E;font-weight:700;">Car rate</span>, not SUV rate. Select an <span style="color:#F97316;font-weight:700;">orange</span> SUV slot below.
+        </div>`;
+    }
+
     const sortedFloors = Object.keys(floors).sort((a, b) => a - b);
 
     for (const floor of sortedFloors) {
@@ -229,34 +303,65 @@ function renderSlotGrid() {
 
     container.innerHTML = html;
 
-    // Bind click events
-    container.querySelectorAll('.slot-cell.available:not(.filtered-out)').forEach(cell => {
+    // Bind click events (including shared + overflow slots)
+    container.querySelectorAll('.slot-cell.available:not(.filtered-out), .slot-cell.shared-available:not(.filtered-out), .slot-cell.overflow-available:not(.filtered-out)').forEach(cell => {
         cell.addEventListener('click', () => selectSlot(cell));
     });
 }
 
 function renderSlotCell(slot) {
     const isOcc    = slot.status === 'OCCUPIED';
-    const isLocked = slot.status === 'LOCKED';
+    const isLocked = slot.status === 'LOCKED' || slot.status === 'LOCKING';
     const isAvail  = slot.status === 'AVAILABLE';
+    const isShared = slot.status === 'SHARED';
     const filtered = slot.type !== selectedType;
 
+    // Check if bike slots are full and this is a car slot that can be shared
+    const bikeSlotsFull = selectedType === 'BIKE' && slotsData.filter(s => s.type === 'BIKE' && s.status === 'AVAILABLE').length === 0;
+    const isShareable = bikeSlotsFull && selectedType === 'BIKE' && slot.type === 'CAR' && (isAvail || isShared);
+
+    // Check if car slots are full and this is an SUV slot available for overflow
+    const carSlotsFull = selectedType === 'CAR' && slotsData.filter(s => s.type === 'CAR' && s.status === 'AVAILABLE').length === 0;
+    const isOverflow = carSlotsFull && selectedType === 'CAR' && slot.type === 'SUV' && isAvail;
+
     let cls = 'slot-cell';
-    if (isAvail && !filtered)  cls += ' available';
-    if (isOcc)                 cls += ' occupied';
-    if (isLocked)              cls += ' locked';
-    if (filtered)              cls += ' filtered-out';
+    if (isShareable) {
+        cls += ' shared-available';
+    } else if (isOverflow) {
+        cls += ' overflow-available';
+    } else if (isAvail && !filtered) {
+        cls += ' available';
+    }
+    if (isOcc && !isShareable && !isOverflow)    cls += ' occupied';
+    if (isLocked)                                 cls += ' locked';
+    if (filtered && !isShareable && !isOverflow)  cls += ' filtered-out';
     if (slot.id === selectedSlotId) cls += ' selected';
 
     // Heatmap opacity
     const heatOpacity = slot.heatMax > 0 ? (slot.heatCount / slot.heatMax * 0.35) : 0;
     const num = slot.slotNumber.split('-')[1] || slot.slotNumber;
 
-    const icon = isOcc ? '🔴' : isLocked ? '🟡' : '🟢';
+    let icon = isOcc ? '🔴' : isLocked ? '🟡' : '🟢';
+    let badge = '';
+    let extraStyle = '';
+    if (isShareable && isShared) {
+        icon = '🟣';
+        badge = '<span style="position:absolute;top:2px;right:2px;font-size:0.5rem;background:#A855F7;color:#fff;border-radius:4px;padding:1px 3px;line-height:1;">+1</span>';
+        extraStyle = 'border-color:#A855F7;box-shadow:0 0 8px #A855F755;';
+    } else if (isShareable && isAvail) {
+        icon = '🟢';
+        badge = '<span style="position:absolute;top:2px;right:2px;font-size:0.5rem;background:#A855F7;color:#fff;border-radius:4px;padding:1px 3px;line-height:1;">🏍️×2</span>';
+        extraStyle = 'border-color:#A855F7;box-shadow:0 0 8px #A855F755;';
+    } else if (isOverflow) {
+        icon = '🟠';
+        badge = '<span style="position:absolute;top:2px;right:2px;font-size:0.5rem;background:#F97316;color:#fff;border-radius:4px;padding:1px 3px;line-height:1;">🚗</span>';
+        extraStyle = 'border-color:#F97316;box-shadow:0 0 8px #F9731655;';
+    }
 
     return `<div class="${cls}" data-id="${slot.id}" data-type="${slot.type}" 
-                style="--heat-opacity:${heatOpacity}">
+                style="--heat-opacity:${heatOpacity};${extraStyle}position:relative;">
                 <div class="heat-overlay"></div>
+                ${badge}
                 <span class="slot-num">${num}</span>
                 <span class="slot-icon">${icon}</span>
             </div>`;
@@ -319,15 +424,11 @@ async function doCheckin() {
     const plate = el('plateInput').value.replace(/[\s-]/g, '').toUpperCase();
 
     try {
-        const res = await fetch(`${API}/api/checkin`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                phone: phone,
-                plate: plate,
-                type: selectedType,
-                slotId: selectedSlotId
-            })
+        const res = await authPost(`${API}/api/checkin`, {
+            phone: phone,
+            plate: plate,
+            type: selectedType,
+            slotId: selectedSlotId
         });
 
         const data = await res.json();
@@ -351,7 +452,7 @@ async function doCheckin() {
         el('confirmGrid').innerHTML = `
             <div class="info-item">
                 <div class="label">Slot</div>
-                <div class="value">${data.slotNumber}</div>
+                <div class="value">${data.slotNumber}${data.sharedSlot ? ' 🏍️×2' : ''}</div>
             </div>
             <div class="info-item">
                 <div class="label">Floor</div>
@@ -367,7 +468,14 @@ async function doCheckin() {
             </div>
         `;
 
-        el('fineWarningText').textContent = data.fineWarning;
+        // Show shared/overflow slot notice
+        if (data.sharedSlot) {
+            el('fineWarningText').textContent = '🏍️ SHARED SLOT — You are sharing a Car slot with another bike. Park carefully!';
+        } else if (data.overflowSlot) {
+            el('fineWarningText').textContent = '🚗 OVERFLOW — You are using an SUV slot at Car rate. Park in the assigned slot only!';
+        } else {
+            el('fineWarningText').textContent = data.fineWarning;
+        }
 
     } catch (e) {
         el('confirmLoading').classList.add('hidden');
@@ -429,11 +537,7 @@ async function doLookup() {
 
     showLoading('Looking up your session...');
     try {
-        const res = await fetch(`${API}/api/lookup-session`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ plate: plate, pin: pin })
-        });
+        const res = await authPost(`${API}/api/lookup-session`, { plate: plate, pin: pin });
         const data = await res.json();
         hideLoading();
 
@@ -485,6 +589,16 @@ function renderBill(data) {
     }
 
     el('billParkFee').textContent = `₹${data.parkingFee.toFixed(2)}`;
+
+    // Loyalty discount
+    const loyaltyRow = document.getElementById('loyaltyRow');
+    if (data.loyaltyDiscount > 0 && loyaltyRow) {
+        loyaltyRow.style.display = 'flex';
+        document.getElementById('loyaltyLabel').textContent = `${data.loyaltyLabel} (${data.loyaltyDiscount}%)`;
+        document.getElementById('loyaltyValue').textContent = `-₹${data.discountAmount.toFixed(2)}`;
+    } else if (loyaltyRow) {
+        loyaltyRow.style.display = 'none';
+    }
 
     // Grace
     if (data.graceApplied) {
@@ -539,13 +653,9 @@ async function doCheckout() {
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     try {
-        const res = await fetch(`${API}/api/checkout`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                sessionId: sessionData.sessionId,
-                paymentMethod: method
-            })
+        const res = await authPost(`${API}/api/checkout`, {
+            sessionId: sessionData.sessionId,
+            paymentMethod: method
         });
         const data = await res.json();
         hideLoading();
@@ -587,10 +697,15 @@ function showExitPin(data) {
             <div class="label">Parking Fee</div>
             <div class="value">₹${data.parkingFee.toFixed(2)}</div>
         </div>
+        ${data.loyaltyDiscount > 0 ? `
+        <div class="info-item">
+            <div class="label">Loyalty</div>
+            <div class="value" style="color:#A855F7">${data.loyaltyDiscount}% off (-₹${data.discountAmount.toFixed(2)})</div>
+        </div>` : `
         <div class="info-item">
             <div class="label">Fines</div>
             <div class="value">${data.fineTotal > 0 ? '₹' + data.fineTotal.toFixed(2) : 'None'}</div>
-        </div>
+        </div>`}
     `;
 
     // Receipt

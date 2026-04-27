@@ -1,0 +1,66 @@
+════════════════════════════════════════════════════════════════
+  ENHANCEMENT 3: MONTHLY VEHICLE VISIT FREQUENCY PDF REPORT
+  Owner: Rohit Harishchandre
+════════════════════════════════════════════════════════════════
+
+WHAT IS THIS?
+─────────────
+An admin feature that generates a professional PDF report
+showing how many times each vehicle visited the parking lot
+in a selected month. The report can be downloaded from the
+Analytics tab or via an API endpoint.
+
+REPORT CONTENTS
+───────────────
+• SnapPark branded header (dark background, cyan accent)
+• Report title: "Monthly Vehicle Visit Frequency Report"
+• Metadata: Selected month/year, generation timestamp, total vehicles
+• Data table with columns:
+    #  |  Vehicle Number  |  Phone  |  Type  |  Visits
+• Sorted by visit frequency (highest first)
+• Total visits summary row at bottom
+• Footer with generation notice
+
+DOWNLOAD OPTIONS
+────────────────
+Option 1 — Kiosk UI:
+  Admin Dashboard → Analytics tab → Select month/year → Click "Download PDF"
+
+Option 2 — API:
+  GET http://localhost:7070/api/report/frequency?year=2026&month=4
+  → Returns PDF binary with Content-Disposition: attachment
+
+FILE NAME FORMAT
+────────────────
+  vehicle-frequency-report-2026-04.pdf
+
+EDGE CASES HANDLED
+──────────────────
+• No data for selected month → PDF shows "No records found" message
+• Invalid month/year → Returns 400 error with message
+• PDF generation failure → Returns 500 error gracefully
+
+JAVA CONCEPTS USED
+──────────────────
+• DTO Pattern (VehicleFrequencyRow — immutable data transfer object)
+• DAO Pattern (ReportDAO — database access layer)
+• Singleton Service (PdfReportService)
+• OpenPDF Library (com.lowagie.text) for PDF generation
+• ByteArrayOutputStream for in-memory PDF creation
+• FileChooser (JavaFX) for save dialog
+• Background Thread (new Thread) to avoid blocking UI
+• Platform.runLater() for thread-safe UI updates
+• SQL: JOIN + GROUP BY + COUNT + ORDER BY
+
+NEW FILES CREATED
+─────────────────
+1. VehicleFrequencyRow.java  — DTO for report rows
+2. ReportDAO.java            — SQL query for monthly frequency
+3. PdfReportService.java     — PDF generation service
+
+FILES MODIFIED
+──────────────
+4. pom.xml                   — Added OpenPDF dependency
+5. WebServer.java            — Added /api/report/frequency endpoint
+6. AnalyticsController.java  — Added download button + ComboBoxes
+7. analytics.fxml            — Added report section UI

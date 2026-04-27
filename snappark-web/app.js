@@ -10,6 +10,20 @@ function getApiUrl() {
     return null; // No kiosk connected
 }
 const API = getApiUrl();
+const API_KEY = new URLSearchParams(window.location.search).get('apiKey') || '';
+
+// Helper: POST with API key auth
+function authPost(url, body) {
+    return fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': API_KEY,
+            'ngrok-skip-browser-warning': 'true'
+        },
+        body: JSON.stringify(body)
+    });
+}
 
 // ── Guard: Show "Scan QR" screen if no Kiosk API is connected ──
 if (!API) {
@@ -246,7 +260,20 @@ function renderSlotGrid() {
         floors[slot.floor].push(slot);
     });
 
-    let html = '';
+    // Count matching available slots
+    const matchingAvail = slotsData.filter(s => s.type === selectedType && s.status === 'AVAILABLE').length;
+    const totalMatch = slotsData.filter(s => s.type === selectedType).length;
+
+    // Slot legend + count
+    let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;gap:14px;font-size:0.75rem;color:var(--text-secondary);">
+            <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--accent-green);"></span> Open</span>
+            <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--accent-red);"></span> Taken</span>
+            <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--accent-amber);"></span> Held</span>
+        </div>
+        <div style="font-size:0.75rem;font-weight:700;color:var(--accent-cyan);">${matchingAvail}/${totalMatch} ${selectedType} slots free</div>
+    </div>`;
+
     const sortedFloors = Object.keys(floors).sort((a, b) => a - b);
 
     for (const floor of sortedFloors) {
@@ -286,7 +313,7 @@ function renderSlotGrid() {
 
 function renderSlotCell(slot) {
     const isOcc    = slot.status === 'OCCUPIED';
-    const isLocked = slot.status === 'LOCKED';
+    const isLocked = slot.status === 'LOCKED' || slot.status === 'LOCKING';
     const isAvail  = slot.status === 'AVAILABLE';
     const filtered = slot.type !== selectedType;
 
@@ -368,18 +395,11 @@ async function doCheckin() {
     const plate = el('plateInput').value.replace(/[\s-]/g, '').toUpperCase();
 
     try {
-        const res = await fetch(`${API}/api/checkin`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'ngrok-skip-browser-warning': '1'
-            },
-            body: JSON.stringify({
-                phone: phone,
-                plate: plate,
-                type: selectedType,
-                slotId: selectedSlotId
-            })
+        const res = await authPost(`${API}/api/checkin`, {
+            phone: phone,
+            plate: plate,
+            type: selectedType,
+            slotId: selectedSlotId
         });
 
         const data = await res.json();
@@ -481,14 +501,7 @@ async function doLookup() {
 
     showLoading('Looking up your session...');
     try {
-        const res = await fetch(`${API}/api/lookup-session`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'ngrok-skip-browser-warning': '1'
-            },
-            body: JSON.stringify({ plate: plate, pin: pin })
-        });
+        const res = await authPost(`${API}/api/lookup-session`, { plate: plate, pin: pin });
         const data = await res.json();
         hideLoading();
 
@@ -594,16 +607,9 @@ async function doCheckout() {
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     try {
-        const res = await fetch(`${API}/api/checkout`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'ngrok-skip-browser-warning': '1'
-            },
-            body: JSON.stringify({
-                sessionId: sessionData.sessionId,
-                paymentMethod: method
-            })
+        const res = await authPost(`${API}/api/checkout`, {
+            sessionId: sessionData.sessionId,
+            paymentMethod: method
         });
         const data = await res.json();
         hideLoading();

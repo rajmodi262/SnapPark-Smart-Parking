@@ -1,0 +1,14 @@
+ENHANCEMENT E01 — SERVER HEALTH CHECK DASHBOARD
+Member: Raj Modi
+=================================================
+
+PROMPT (Copy-paste this directly):
+
+"In my SnapPark project at c:\Users\Raj Modi\Pictures\snappark, add a /api/health GET endpoint to WebServer.java that returns a JSON response with: server uptime in seconds (track start time with System.currentTimeMillis()), total memory and free memory from Runtime.getRuntime(), database connection pool status (pool size), total parking slots count, currently occupied slots count, and currently active sessions count. Use a HashMap to build the response. Register the endpoint in the createContexts() method. Make sure it returns proper JSON content-type headers.
+
+CRITICAL SAFETY RULES:
+- This is a brand NEW endpoint (/api/health) — do NOT modify any existing endpoints.
+- Wrap everything in try-catch — if any query fails, return partial data with 'status: DEGRADED' instead of crashing.
+- Do NOT touch the QR code generation, mobile HTML/CSS/JS files, or any check-in/check-out logic.
+- Do NOT require any external API or library — use only existing Java classes (Runtime, HashMap, ParkingService).
+- Test by running mvn clean compile to verify no build errors."

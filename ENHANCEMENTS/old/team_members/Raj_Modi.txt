@@ -1,0 +1,37 @@
+================================================================================
+  TEAM MEMBER: RAJ MODI
+  Role: Backend Java & API Developer
+================================================================================
+
+PROJECT: SnapPark — Smart Parking Management System
+
+ROLE IN THE PROJECT:
+I developed the core Java backend architecture. This included building
+the custom embedded HTTP server to handle mobile network requests,
+implementing the ZXing cryptographic QR code generation logic, and
+formulating the session management for parking validations.
+
+LEARNING FROM THE PROJECT:
+I gained profound knowledge of Java networking and multithreading by
+constructing a custom HTTP server from the ground up. I also learned
+how to implement secure QR session validation, handle payload parsing,
+and design scalable API endpoints within a purely Java-based ecosystem.
+
+CHALLENGES FACED:
+Handling concurrent HTTP requests efficiently during peak server loads
+without dropping connections was quite difficult. Furthermore, parsing
+the mobile client states and managing real-time data flow purely through
+custom Java Exchange handlers required rigorous debugging and strict
+thread synchronization.
+
+ASSIGNED ENHANCEMENTS (3):
+  E01 — Server Health Check Dashboard    (HashMap, Runtime API)
+  E02 — Vehicle Re-Entry Prevention      (JDBC, PreparedStatement)
+  E03 — API Request Rate Limiter         (ConcurrentHashMap, Threading)
+
+KEY FILES OWNED:
+  - WebServer.java (40KB — the main API controller)
+  - QRCodeService.java
+  - SMSService.java
+
+================================================================================

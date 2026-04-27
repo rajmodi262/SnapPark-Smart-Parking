@@ -11,7 +11,7 @@ public class SMSService {
 
     private static SMSService instance;
     private SMSService() {}
-    public static SMSService getInstance() {
+    public static synchronized SMSService getInstance() {
         if (instance == null) instance = new SMSService();
         return instance;
     }

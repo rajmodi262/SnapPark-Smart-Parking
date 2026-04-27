@@ -1,0 +1,15 @@
+ENHANCEMENT E07 — LOT ALMOST FULL KIOSK BANNER
+Member: Rohit
+=================================================
+
+PROMPT (Copy-paste this directly):
+
+"In my SnapPark project at c:\Users\Raj Modi\Pictures\snappark, add a 'Lot Almost Full' warning banner to the JavaFX kiosk. In ParkingService.java, add two new methods: boolean isNearFull() that returns true when occupancy is above 85%, and int getRemainingSlots() that returns the count of AVAILABLE slots. Then in the kiosk controller that shows the parking grid (KioskParkController.java), add a JavaFX Label at the top of the screen that is initially hidden (setVisible(false)). After loading slot data, check isNearFull() inside a try-catch. If true, make the label visible with text 'WARNING: LOT ALMOST FULL — Only X spots left!' styled with a red background, white bold text, and a JavaFX Timeline animation that toggles the label's opacity between 1.0 and 0.3 every 500ms to create a flashing effect. Add the CSS styling inline using setStyle().
+
+CRITICAL SAFETY RULES:
+- Only ADD new UI elements (the warning Label) — do NOT remove or move any existing kiosk elements.
+- The warning label must be hidden by default (setVisible(false)). It only shows when isNearFull() returns true.
+- Wrap isNearFull() call in try-catch — if it fails, keep the banner hidden silently.
+- This is KIOSK-ONLY — do NOT touch any mobile HTML/JS files, WebServer endpoints, or QR code logic.
+- Do NOT require any external API or library.
+- Test by running mvn clean compile to verify no build errors."

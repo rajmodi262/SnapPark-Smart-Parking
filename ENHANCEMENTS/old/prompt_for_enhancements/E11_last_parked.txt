@@ -1,0 +1,15 @@
+ENHANCEMENT E11 — LAST PARKED VEHICLE INFO ENDPOINT
+Member: Levinesh GR
+=================================================
+
+PROMPT (Copy-paste this directly):
+
+"In my SnapPark project at c:\Users\Raj Modi\Pictures\snappark, add a last-parked vehicle info endpoint. In WebServer.java, register a brand NEW GET endpoint /api/last-parked. In the handler, query the database for the most recently checked-in active session by joining parking_sessions with vehicles and parking_slots tables. Use ORDER BY entry_time DESC LIMIT 1 to get only the latest record. Return a JSON response with fields: plate (vehicle plate number), type (vehicle type), slot (slot number), floor (floor number), and entry_time (formatted timestamp). Use a HashMap<String, Object> to build the response. If no active sessions exist, return {"message":"No active sessions found"}. Use JDBC PreparedStatement with proper try-with-resources.
+
+CRITICAL SAFETY RULES:
+- This is a brand NEW endpoint (/api/last-parked) — do NOT modify any existing endpoints.
+- Wrap the entire handler in try-catch — if DB query fails, return an empty JSON with an error message.
+- Do NOT touch any mobile HTML/JS files, QR code logic, or check-in/check-out logic.
+- Do NOT require any external API or library.
+- GET-only endpoint — no database writes, zero side effects.
+- Test by running mvn clean compile to verify no build errors."

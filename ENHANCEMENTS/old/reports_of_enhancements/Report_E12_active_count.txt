@@ -1,0 +1,153 @@
+================================================================================
+  REPORT E12: ACTIVE SESSIONS COUNT BADGE
+  Member: Levinesh GR | Role: Database Architect & System Integrator
+================================================================================
+
+1. WHAT: Add /api/active-count returning the number of currently active sessions.
+2. WHY: Quick occupancy number for admin dashboards and monitoring tools.
+3. CODE: SQL COUNT(*) with WHERE clause + LocalDateTime + HashMap JSON response.
+
+================================================================================
+4. JAVA CONCEPTS EXPLAINED IN DETAIL
+================================================================================
+
+A) SQL COUNT(*) — Aggregate Row Counting
+-----------------------------------------
+COUNT(*) counts ALL rows that match the query conditions.
+
+    SELECT COUNT(*) AS active_count
+    FROM parking_sessions
+    WHERE exit_time IS NULL;
+
+    // Result: active_count = 12
+
+BREAKDOWN:
+    COUNT(*)               → counts every row (including NULLs)
+    COUNT(column_name)     → counts only NON-NULL values in that column
+    WHERE exit_time IS NULL → filters to only active (not yet exited) sessions
+
+WHY COUNT(*) and not COUNT(id)?
+    COUNT(*) counts all rows regardless of NULL columns — it's the fastest.
+    COUNT(id) skips rows where id is NULL (rare but possible).
+    For "how many rows match?", COUNT(*) is the standard choice.
+
+MIND MAP — COUNT Variations:
+    ┌──────────────────────────────────────────────────────────┐
+    │  parking_sessions table:                                │
+    │  ┌────┬───────────┬────────────┐                       │
+    │  │ id │ plate     │ exit_time  │                       │
+    │  ├────┼───────────┼────────────┤                       │
+    │  │  1 │ MH12AB34  │ 15:00      │ ← exited (skip)      │
+    │  │  2 │ DL05XY99  │ NULL       │ ← active (count!)     │
+    │  │  3 │ KA09ZZ12  │ NULL       │ ← active (count!)     │
+    │  │  4 │ TN01CC88  │ 16:30      │ ← exited (skip)      │
+    │  │  5 │ GJ06DD44  │ NULL       │ ← active (count!)     │
+    │  └────┴───────────┴────────────┘                       │
+    │                                                         │
+    │  COUNT(*) WHERE exit_time IS NULL → 3                  │
+    └──────────────────────────────────────────────────────────┘
+
+
+B) IS NULL vs = NULL — A Critical SQL Distinction
+---------------------------------------------------
+In SQL, NULL is NOT a value — it means "unknown" or "missing".
+You CANNOT compare NULL with = because NULL = NULL returns FALSE!
+
+    -- WRONG (always returns 0 rows):
+    SELECT * FROM sessions WHERE exit_time = NULL;
+
+    -- CORRECT:
+    SELECT * FROM sessions WHERE exit_time IS NULL;
+
+WHY?
+    NULL represents "I don't know."
+    "I don't know" = "I don't know" → we don't know! → FALSE
+    IS NULL is a special operator designed to test for this.
+
+MIND MAP — NULL Comparison:
+    ┌──────────────────────────────────────────────────────────┐
+    │   Expression              │  Result                     │
+    │   ────────────────────    │  ──────                     │
+    │   NULL = NULL             │  FALSE (unknown!)            │
+    │   NULL != NULL            │  FALSE (unknown!)            │
+    │   NULL IS NULL            │  TRUE ✓                     │
+    │   NULL IS NOT NULL        │  FALSE ✓                    │
+    │   'hello' IS NULL         │  FALSE ✓                    │
+    │   'hello' IS NOT NULL     │  TRUE ✓                     │
+    └──────────────────────────────────────────────────────────┘
+
+
+C) LocalDateTime.now() — Current Timestamp
+--------------------------------------------
+LocalDateTime provides the current date and time without timezone.
+
+    import java.time.LocalDateTime;
+
+    LocalDateTime now = LocalDateTime.now();
+    // 2026-04-27T14:32:05.123
+
+    String timestamp = now.toString();
+    // "2026-04-27T14:32:05.123"
+
+WHY include a timestamp in the response?
+    The count is a snapshot — it changes every second.
+    Including the timestamp tells the caller WHEN this count was accurate.
+
+    {
+      "active_sessions": 12,
+      "timestamp": "2026-04-27T14:32:05"
+    }
+
+    Without timestamp, the client doesn't know if this data is fresh or stale.
+
+
+D) Simple REST Endpoint Design — Minimal JSON Response
+-------------------------------------------------------
+    HashMap<String, Object> response = new HashMap<>();
+    response.put("active_sessions", count);
+    response.put("timestamp", LocalDateTime.now().toString());
+
+    // Convert to JSON string and send:
+    String json = toJson(response);
+    exchange.sendResponseHeaders(200, json.length());
+
+MIND MAP — Request/Response Flow:
+    Browser/Dashboard                    Java WebServer
+         |                                    |
+         |  GET /api/active-count             |
+         |────────────────────────────────────>|
+         |                                    |
+         |                       [SQL: SELECT COUNT(*)]
+         |                       [Result: 12]
+         |                       [Build HashMap]
+         |                       [Serialize to JSON]
+         |                                    |
+         |  200 OK                            |
+         |  {"active_sessions":12,            |
+         |   "timestamp":"2026-04-27T14:32"}  |
+         |<────────────────────────────────────|
+
+
+================================================================================
+5. VISIBLE ON SCREEN
+================================================================================
+  Open /api/active-count in browser:
+  ┌──────────────────────────────────────────────────────────────────┐
+  │  {                                                              │
+  │    "active_sessions": 12,                                      │
+  │    "timestamp": "2026-04-27T14:32:05"                          │
+  │  }                                                              │
+  └──────────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+7. SAFETY GUARANTEES
+================================================================================
+  [✓] Brand NEW endpoint /api/active-count — no existing endpoint modified
+  [✓] Entire handler wrapped in try-catch — returns {"active_sessions":0} on fail
+  [✓] Single SQL query with no JOINs — extremely fast execution
+  [✓] No external API or library needed — uses only JDBC and HashMap
+  [✓] Does NOT touch: QR codes, mobile HTML/JS, check-in/checkout flow
+  [✓] GET-only endpoint — no database writes, zero side effects
+
+================================================================================

@@ -1,0 +1,199 @@
+════════════════════════════════════════════════════════════════
+  ENHANCEMENT 1: SOURCE CODE — Two-Wheeler Shared Parking
+  Owner: Aaditya Sinha
+  
+  These are the ACTUAL code files from the project.
+  Faculty can open these source files directly:
+════════════════════════════════════════════════════════════════
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 1: SlotStatus.java  (FULL FILE)
+Path: src/main/java/com/snappark/model/enums/SlotStatus.java
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+package com.snappark.model.enums;
+public enum SlotStatus { AVAILABLE, LOCKING, OCCUPIED, SHARED }
+
+// SHARED was added for Enhancement 1
+// It represents a CAR slot with 1 bike parked (room for 1 more)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 2: SessionDAO.java  (NEW METHOD ONLY)
+Path: src/main/java/com/snappark/dao/SessionDAO.java
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    /** Count how many active sessions exist for a given slot (0, 1, or 2 for shared slots) */
+    public int countActiveBySlot(int slotId) {
+        String sql = "SELECT COUNT(*) FROM parking_sessions WHERE slot_id = ? AND active = 1";
+        try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, slotId);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return rs.getInt(1);
+        } catch (SQLException e) { System.err.println(e.getMessage()); }
+        return 0;
+    }
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 3: ParkingService.java  (FULL FILE — ALL CHANGES MARKED)
+Path: src/main/java/com/snappark/service/ParkingService.java
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+package com.snappark.service;
+
+import java.util.List;
+import com.snappark.concurrent.LockManager;
+import com.snappark.dao.SessionDAO;
+import com.snappark.dao.SlotDAO;
+import com.snappark.model.ParkingSlot;
+import com.snappark.model.enums.SlotStatus;
+import com.snappark.model.enums.VehicleType;
+
+public class ParkingService {
+    private static ParkingService instance;
+    private final SlotDAO slotDAO;
+    private final SessionDAO sessionDAO;
+    private final LockManager lockManager;
+
+    private ParkingService() {
+        this.slotDAO = new SlotDAO();
+        this.sessionDAO = new SessionDAO();
+        this.lockManager = LockManager.getInstance();
+    }
+
+    public static synchronized ParkingService getInstance() {
+        if (instance == null) {
+            instance = new ParkingService();
+        }
+        return instance;
+    }
+
+    // ═══ ENHANCED: Now also allows SHARED status (for 2nd bike) ═══
+    public boolean lockSlot(int slotId, int userId) {
+        ParkingSlot slot = slotDAO.findById(slotId);
+        if (slot == null) {
+            System.out.println("Slot not found: " + slotId);
+            return false;
+        }
+        // Allow locking if slot is AVAILABLE, or SHARED (for second bike)
+        if (slot.getStatus() != SlotStatus.AVAILABLE && slot.getStatus() != SlotStatus.SHARED) {
+            System.out.println("Slot not available: " + slotId + " (status=" + slot.getStatus() + ")");
+            return false;
+        }
+        boolean locked = lockManager.acquireLock(slotId, userId);
+        if (locked) {
+            slotDAO.updateStatus(slotId, SlotStatus.LOCKING);
+            System.out.println("Slot locked: " + slotId + " by user: " + userId);
+        } else {
+            System.out.println("Slot already locked: " + slotId);
+        }
+        return locked;
+    }
+
+    // ═══ ORIGINAL METHOD (unchanged) ═══
+    public boolean confirmBooking(int slotId, int userId) {
+        if (!lockManager.isLocked(slotId)) return false;
+        if (lockManager.getLock(slotId).getUserId() != userId) return false;
+        slotDAO.updateStatus(slotId, SlotStatus.OCCUPIED);
+        lockManager.releaseLock(slotId, userId);
+        System.out.println("Booking confirmed for slot: " + slotId);
+        return true;
+    }
+
+    // ═══ NEW METHOD: Shared slot booking (Enhancement 1) ═══
+    /**
+     * Confirm booking for a shared slot (first bike → SHARED, second bike → OCCUPIED).
+     * @param existingSessions how many active sessions already exist on this slot
+     */
+    public boolean confirmSharedBooking(int slotId, int userId, int existingSessions) {
+        if (!lockManager.isLocked(slotId)) return false;
+        if (lockManager.getLock(slotId).getUserId() != userId) return false;
+
+        if (existingSessions == 0) {
+            // First bike in car slot → SHARED (room for one more)
+            slotDAO.updateStatus(slotId, SlotStatus.SHARED);
+            System.out.println("Shared booking (1st bike) confirmed for slot: " + slotId);
+        } else {
+            // Second bike → OCCUPIED (slot full)
+            slotDAO.updateStatus(slotId, SlotStatus.OCCUPIED);
+            System.out.println("Shared booking (2nd bike) confirmed for slot: " + slotId);
+        }
+        lockManager.releaseLock(slotId, userId);
+        return true;
+    }
+
+    // ═══ ENHANCED: Checks remaining sessions before releasing ═══
+    /**
+     * Release a slot. Checks if there are remaining sessions (for shared slots).
+     * If one bike is still parked, sets SHARED. Otherwise, AVAILABLE.
+     */
+    public boolean releaseSlot(int slotId) {
+        int remaining = sessionDAO.countActiveBySlot(slotId);
+        if (remaining > 0) {
+            // Another bike is still parked in this shared slot
+            slotDAO.updateStatus(slotId, SlotStatus.SHARED);
+            System.out.println("Slot partially released (shared): " + slotId);
+        } else {
+            slotDAO.updateStatus(slotId, SlotStatus.AVAILABLE);
+            System.out.println("Slot released: " + slotId);
+        }
+        return true;
+    }
+
+    // ═══ NEW METHOD: Check if bike slots are full (Enhancement 1) ═══
+    public boolean areBikeSlotsFull() {
+        List<ParkingSlot> allSlots = slotDAO.findAll();
+        long totalBikeSlots = allSlots.stream()
+            .filter(s -> s.getType() == VehicleType.BIKE)
+            .count();
+        long availableBikeSlots = allSlots.stream()
+            .filter(s -> s.getType() == VehicleType.BIKE && s.getStatus() == SlotStatus.AVAILABLE)
+            .count();
+        return totalBikeSlots > 0 && availableBikeSlots == 0;
+    }
+
+    // ... other methods (getAllSlots, getSlotsByFloor, etc.)
+}
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 4: WebServer.java  (SHARED SLOT BLOCK in handleCheckin)
+Path: src/main/java/com/snappark/service/WebServer.java
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        VehicleType vt = VehicleType.valueOf(typeStr);
+
+        // ── SHARED SLOT LOGIC ──────────────────────────────────────
+        // Detect if this is a bike trying to park in a car slot (shared)
+        ParkingSlot targetSlot = parkingService.getAllSlots().stream()
+            .filter(s->s.getId()==slotId).findFirst().orElse(null);
+        boolean isSharedBooking = false;
+        int existingSessions = 0;
+
+        if (vt == VehicleType.BIKE && targetSlot != null && targetSlot.getType() == VehicleType.CAR) {
+            // Bike wants a car slot — only allow if bike slots are full
+            if (!parkingService.areBikeSlotsFull()) {
+                sendResponse(ex, 400, "{\"error\":\"Bike slots are still available. Please select a bike slot.\"}");
+                return;
+            }
+            existingSessions = sessionDAO.countActiveBySlot(slotId);
+            if (existingSessions >= 2) {
+                sendResponse(ex, 409, "{\"error\":\"This shared slot already has 2 bikes. Choose another.\"}");
+                return;
+            }
+            isSharedBooking = true;
+        }
+        // ── END SHARED SLOT LOGIC ──────────────────────────────────
+
+        // ... later in the method:
+        // Confirm booking (shared or normal)
+        if (isSharedBooking) {
+            parkingService.confirmSharedBooking(slotId, 0, existingSessions);
+        } else {
+            parkingService.confirmBooking(slotId, 0);
+        }
+
+        // JSON response includes:
+        // "sharedSlot": true/false

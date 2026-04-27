@@ -1,0 +1,104 @@
+================================================================================
+  REPORT E09: LIVE STATS HEADER ON KIOSK
+  Member: Rohit | Role: JavaFX Desktop & Kiosk Developer
+================================================================================
+
+1. WHAT: Stats bar on kiosk: vehicles today, revenue, peak hour.
+2. WHY: Parking owner needs real-time business overview.
+3. CODE: AnalyticsService + ScheduledExecutor + Platform.runLater().
+
+================================================================================
+4. JAVA CONCEPTS EXPLAINED IN DETAIL
+================================================================================
+
+A) ScheduledExecutorService — Periodic Background Tasks
+---------------------------------------------------------
+Unlike a simple Thread.sleep() loop, ScheduledExecutorService is the
+proper Java way to run recurring background tasks.
+
+    ScheduledExecutorService scheduler =
+        Executors.newSingleThreadScheduledExecutor();
+
+    scheduler.scheduleAtFixedRate(() -> {
+        // This runs every 30 seconds on a background thread
+        Map<String, Object> stats = analyticsService.getTodaySnapshot();
+        Platform.runLater(() -> updateLabels(stats));
+    }, 0, 30, TimeUnit.SECONDS);
+    //   ↑  ↑     ↑
+    //   |  |     └── time unit
+    //   |  └── repeat every 30 seconds
+    //   └── initial delay: 0 (start immediately)
+
+WHY not Thread.sleep()?
+    [✗] Thread.sleep() blocks the thread wastefully
+    [✗] No error recovery — if task throws, thread dies silently
+    [✓] ScheduledExecutorService handles errors gracefully
+    [✓] Provides clean shutdown with scheduler.shutdownNow()
+
+
+B) Platform.runLater() — JavaFX Thread Safety
+-----------------------------------------------
+JavaFX has ONE rule: ALL UI updates MUST happen on the JavaFX
+Application Thread. If you update a Label from a background thread,
+the app crashes with IllegalStateException.
+
+    // WRONG — crashes!
+    backgroundThread → label.setText("47 vehicles");
+
+    // CORRECT — schedules update on JavaFX thread
+    Platform.runLater(() -> label.setText("47 vehicles"));
+
+MIND MAP — Thread Safety Flow:
+    ┌──────────────────────────────────────────┐
+    │  Background Thread          JavaFX Thread│
+    │  (ScheduledExecutor)        (UI Thread)  │
+    │                                          │
+    │  [Query Database]                        │
+    │  [Get: 47 vehicles]                      │
+    │  [Get: Rs. 12,350]                       │
+    │         |                                │
+    │  Platform.runLater(() -> {               │
+    │    vehicleLabel.setText("47");  ────────> │ SAFE!
+    │    revenueLabel.setText("12350"); ──────> │ SAFE!
+    │  });                                     │
+    └──────────────────────────────────────────┘
+
+
+C) SQL Aggregation — SUM, COUNT, GROUP BY
+-------------------------------------------
+    // Total vehicles today
+    SELECT COUNT(*) FROM parking_sessions
+    WHERE entry_time::date = CURRENT_DATE;
+
+    // Today's revenue
+    SELECT COALESCE(SUM(amount), 0) FROM transactions
+    WHERE payment_time::date = CURRENT_DATE;
+
+    // Peak hour
+    SELECT EXTRACT(HOUR FROM entry_time) as hr, COUNT(*) as cnt
+    FROM parking_sessions
+    WHERE entry_time::date = CURRENT_DATE
+    GROUP BY hr ORDER BY cnt DESC LIMIT 1;
+
+================================================================================
+5. VISIBLE ON KIOSK SCREEN
+================================================================================
+    ┌═══════════════════════════════════════════════┐
+    │  📊 Today: 47 vehicles | Rs.12,350 | Peak 2PM│
+    ├═══════════════════════════════════════════════┤
+    │  [Normal kiosk welcome screen below]         │
+    │  [Refreshes every 30 seconds automatically]  │
+    └═══════════════════════════════════════════════┘
+
+
+================================================================================
+7. SAFETY GUARANTEES
+================================================================================
+  [?] KIOSK-ONLY change � does NOT touch mobile HTML/JS or WebServer endpoints
+  [?] getTodaySnapshot() returns safe defaults (0, 0.0, 'N/A') on any failure
+  [?] ScheduledExecutor is properly shut down to prevent memory leaks
+  [?] Platform.runLater() ensures thread-safe UI updates � no JavaFX crashes
+  [?] No external API or library needed � uses only existing AnalyticsService
+  [?] Does NOT touch: QR codes, check-in/checkout flow, any mobile files
+
+================================================================================

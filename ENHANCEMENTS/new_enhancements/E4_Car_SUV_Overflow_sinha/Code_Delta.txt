@@ -1,0 +1,125 @@
+════════════════════════════════════════════════════════════════
+  ENHANCEMENT 4: CODE DELTA (Original vs Enhanced)
+  Owner: Levinesh G R
+════════════════════════════════════════════════════════════════
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 1: ParkingService.java — NEW METHOD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ORIGINAL: Only areBikeSlotsFull() existed
+
+ENHANCED — Added:
+  /**
+   * Check if all CAR-type slots are full.
+   * Used to determine if cars should be offered SUV slots.
+   */
+  public boolean areCarSlotsFull() {
+      List<ParkingSlot> allSlots = slotDAO.findAll();
+      long totalCarSlots = allSlots.stream()
+          .filter(s -> s.getType() == VehicleType.CAR)
+          .count();
+      long availableCarSlots = allSlots.stream()
+          .filter(s -> s.getType() == VehicleType.CAR
+                    && s.getStatus() == SlotStatus.AVAILABLE)
+          .count();
+      return totalCarSlots > 0 && availableCarSlots == 0;
+  }
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 2: WebServer.java — handleCheckin() ADDITION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ORIGINAL: No overflow detection — only shared slot logic
+
+ENHANCED — ADDED BLOCK (after shared slot logic):
+  // ── CAR → SUV OVERFLOW LOGIC ─────────────────────
+  boolean isOverflowBooking = false;
+  if (vt == VehicleType.CAR
+      && targetSlot != null
+      && targetSlot.getType() == VehicleType.SUV) {
+
+      if (!parkingService.areCarSlotsFull()) {
+          sendResponse(ex, 400,
+            "Car slots are still available. Please select a car slot.");
+          return;
+      }
+      isOverflowBooking = true;
+  }
+  // ── END OVERFLOW LOGIC ───────────────────────────
+
+───────────────────────────────────────────────────────
+
+ORIGINAL JSON Response:
+  "sharedSlot":false,
+  "fineWarning":"Park at F1-12 ONLY..."
+
+ENHANCED JSON Response:
+  "sharedSlot":false,
+  "overflowSlot":true,          // ← NEW FIELD
+  "fineWarning":"Park at F1-12 ONLY..."
+
+───────────────────────────────────────────────────────
+
+ORIGINAL Console Log:
+  CHECK-IN: MH12AB1234 -> F1-12 PIN=4729
+
+ENHANCED Console Log:
+  CHECK-IN: MH12AB1234 -> F1-12 [OVERFLOW CAR→SUV] PIN=4729
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 3: app.js — MOBILE UI ADDITIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ENHANCED — Overflow Detection:
+  const carSlotsFull = selectedType === 'CAR' && matchingAvail === 0;
+  const overflowSlots = carSlotsFull
+    ? slotsData.filter(s => s.type === 'SUV' && s.status === 'AVAILABLE').length
+    : 0;
+
+ENHANCED — Orange Banner:
+  if (carSlotsFull && overflowSlots > 0) {
+      // Orange gradient banner:
+      "🚗→🅿️ Car slots full! You can use an SUV slot instead
+       — charged at Car rate, not SUV rate.
+       Select an orange SUV slot below."
+  }
+
+ENHANCED — Slot Cell Rendering:
+  const isOverflow = carSlotsFull && slot.type === 'SUV' && isAvail;
+
+  if (isOverflow) {
+      cls += ' overflow-available';
+      icon = '🟠';
+      badge = '🚗';
+      style = 'border-color:#F97316; box-shadow:0 0 8px #F9731655;';
+  }
+
+ENHANCED — Confirmation Notice:
+  if (data.overflowSlot) {
+      fineWarningText = '🚗 OVERFLOW — You are using an SUV slot
+                         at Car rate. Park in the assigned slot only!';
+  }
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PRICING — NO CODE CHANGE NEEDED (KEY INSIGHT)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The billing system already uses VEHICLE TYPE for rate calculation:
+
+  // In WebServer.handleCheckin():
+  var breakdown = surgeService.getBreakdown(vt, ...);
+                                            ^^
+                                     VehicleType.CAR
+                                     (NOT slot.getType())
+
+  // In BillingService.calculateFee():
+  public double calculateFee(VehicleType type, entry, exit)
+                              ^^^^^^^^^^
+                        Always the vehicle's type
+
+  So a CAR parked in an SUV slot is AUTOMATICALLY charged
+  at the CAR rate. This is a design decision, not a bug!

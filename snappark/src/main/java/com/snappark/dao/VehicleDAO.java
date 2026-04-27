@@ -51,6 +51,16 @@ public class VehicleDAO {
         } catch (SQLException e) { System.err.println(e.getMessage()); return false; }
     }
 
+    public Vehicle findById(int id) {
+        String sql = "SELECT * FROM vehicles WHERE id = ?";
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setInt(1, id);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return mapRow(rs);
+        } catch (SQLException e) { System.err.println(e.getMessage()); }
+        return null;
+    }
+
     public List<Vehicle> findAll() {
         List<Vehicle> list = new ArrayList<>();
         try (Connection c = db.getConnection(); Statement stmt = c.createStatement();

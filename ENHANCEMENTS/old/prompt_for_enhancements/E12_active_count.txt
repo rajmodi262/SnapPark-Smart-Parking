@@ -1,0 +1,16 @@
+ENHANCEMENT E12 — ACTIVE SESSIONS COUNT BADGE
+Member: Levinesh GR
+=================================================
+
+PROMPT (Copy-paste this directly):
+
+"In my SnapPark project at c:\Users\Raj Modi\Pictures\snappark, add an active sessions count endpoint. In WebServer.java, register a brand NEW GET endpoint /api/active-count. In the handler, query the database with: SELECT COUNT(*) AS active_count FROM parking_sessions WHERE exit_time IS NULL. Build a HashMap<String, Object> response with two fields: 'active_sessions' (the count integer) and 'timestamp' (LocalDateTime.now().toString()). Return the JSON response with Content-Type application/json. Use JDBC PreparedStatement with try-with-resources. If the query fails, return {"active_sessions": 0, "timestamp": "..."} as a safe fallback.
+
+CRITICAL SAFETY RULES:
+- This is a brand NEW endpoint (/api/active-count) — do NOT modify any existing endpoints.
+- Wrap the entire handler in try-catch — if DB query fails, return count as 0 (never crash).
+- Do NOT touch any mobile HTML/JS files, QR code logic, or check-in/check-out logic.
+- Do NOT require any external API or library.
+- Single SQL query with no JOINs — must be fast and lightweight.
+- GET-only endpoint — no database writes, zero side effects.
+- Test by running mvn clean compile to verify no build errors."

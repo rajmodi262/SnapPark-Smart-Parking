@@ -1,0 +1,38 @@
+================================================================================
+  TEAM MEMBER: LEVINESH GR
+  Role: Database Architect & System Integrator
+================================================================================
+
+PROJECT: SnapPark — Smart Parking Management System
+
+ROLE IN THE PROJECT:
+I managed the database infrastructure and system deployments. My work
+involved designing the PostgreSQL database schemas, writing the dynamic
+surge-pricing algorithms, and programming the automated Windows batch
+scripts for ngrok LAN/Public network tunneling.
+
+LEARNING FROM THE PROJECT:
+I acquired strong skills in relational database normalization, advanced
+JDBC integration, and complex SQL data aggregations. I also learned
+networking concepts, public port forwarding automation using ngrok, and
+how to write robust Windows batch scripts for build automation.
+
+CHALLENGES FACED:
+Designing the real-time surge pricing algorithm that dynamically adjusts
+rates based on live occupancy without causing database locks was complex.
+Engineering the ngrok batch script to reliably extract a temporary public
+URL and inject it into the Java environment required overcoming multiple
+integration roadblocks.
+
+ASSIGNED ENHANCEMENTS (3):
+  E10 — Database Connection Logger        (Logger API, SimpleDateFormat)
+  E11 — Last Parked Vehicle Info Endpoint  (JDBC, ORDER BY, LIMIT)
+  E12 — Active Sessions Count Badge        (SQL COUNT, JSON Response)
+
+KEY FILES OWNED:
+  - DatabaseManager.java (17KB — connection pooling)
+  - SurgePricingService.java
+  - All DAO files (SessionDAO, SlotDAO, VehicleDAO, etc.)
+  - START_PUBLIC.bat, LAUNCH_SNAPPARK.bat
+
+================================================================================

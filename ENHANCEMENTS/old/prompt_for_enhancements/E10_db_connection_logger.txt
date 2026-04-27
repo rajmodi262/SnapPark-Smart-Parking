@@ -1,0 +1,15 @@
+ENHANCEMENT E10 — DATABASE CONNECTION LOGGER
+Member: Levinesh GR
+=================================================
+
+PROMPT (Copy-paste this directly):
+
+"In my SnapPark project at c:\Users\Raj Modi\Pictures\snappark, add database connection logging. In DatabaseManager.java, add a private static final Logger using java.util.logging.Logger.getLogger("SnapPark.DB"). In the getConnection() method, AFTER successfully obtaining a connection, add a log line using LOGGER.info() that prints: '[DB] HH:mm:ss — Connection OPENED (pool: X/Y active)' where X is the current active count and Y is the pool size. Use SimpleDateFormat("HH:mm:ss") to format the timestamp and String.format() for the message. Similarly, wherever connections are returned or closed, log: '[DB] HH:mm:ss — Connection CLOSED (pool: X/Y active)'. Add a private helper method String formatDbLog(String action) that builds the formatted log message.
+
+CRITICAL SAFETY RULES:
+- Only ADD logging lines — do NOT change any existing connection logic.
+- If the logging itself throws an exception, silently catch it — never let logging break DB operations.
+- Do NOT modify any endpoints, mobile HTML/JS, or QR code logic.
+- Do NOT require any external API or library — use only java.util.logging.
+- The Logger must be a static final field, not created per-call.
+- Test by running mvn clean compile to verify no build errors."

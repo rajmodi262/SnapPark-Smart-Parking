@@ -1,0 +1,110 @@
+================================================================================
+  REPORT E04: LIVE COST ESTIMATOR PREVIEW
+  Member: Aaditya Sinha | Role: Frontend & UI/UX Developer
+================================================================================
+
+1. WHAT: Show estimated hourly rate with surge info before check-in.
+2. WHY: Users should know the price BEFORE committing (like Uber).
+3. CODE: New /api/pricing endpoint + frontend card display.
+
+================================================================================
+4. JAVA CONCEPTS EXPLAINED IN DETAIL
+================================================================================
+
+A) Query Parameter Parsing — URL-based Data Passing
+-----------------------------------------------------
+When a client calls /api/pricing?type=CAR, the "type=CAR" part is a
+query parameter. Java's HttpExchange provides the raw URI, and we
+must parse it manually.
+
+    URI uri = exchange.getRequestURI();          // /api/pricing?type=CAR
+    String query = uri.getQuery();               // "type=CAR"
+    Map<String, String> params = parseQuery(query);
+    String type = params.get("type");            // "CAR"
+
+MIND MAP — Query Parameter Flow:
+    Phone sends: GET /api/pricing?type=CAR&floor=1
+                          |
+                   [Java parses URI]
+                          |
+                ┌─────────┼─────────┐
+                |         |         |
+            path       query     fragment
+         /api/pricing  type=CAR    null
+                       floor=1
+
+
+B) Service Layer Pattern — Separation of Concerns
+---------------------------------------------------
+The WebServer (Controller) does NOT calculate prices directly.
+It delegates to SurgePricingService (Service), which contains
+all business logic. This is the MVC pattern:
+
+    Controller (WebServer)    →  receives HTTP request
+         ↓
+    Service (SurgePricingService) → calculates price
+         ↓
+    Response (JSON)           →  sends back to client
+
+WHY separate?
+  [✓] If pricing logic changes, only SurgePricingService is modified
+  [✓] WebServer stays clean and focused on HTTP handling
+  [✓] Business logic can be unit-tested independently
+
+
+C) SurgePricingService.getBreakdown() — The Pricing Math
+----------------------------------------------------------
+    effectiveRate = baseRate × timeMultiplier × occupancyMultiplier
+
+    Example for CAR at Rush Hour when lot is 80% full:
+      baseRate = 50.0 (Rs per hour)
+      timeMultiplier = 1.30 (Rush Hour: 5PM-9PM → +30%)
+      occupancyMultiplier = 1.15 (75%+ occupancy → +15%)
+      effectiveRate = 50 × 1.30 × 1.15 = Rs. 74.75/hr
+
+MIND MAP — Surge Pricing Calculation:
+    ┌─────────────────────────────────────────────┐
+    │          SURGE PRICING ENGINE               │
+    │                                             │
+    │   Base Rate ──────────── Rs. 50/hr          │
+    │       ×                                     │
+    │   Time Multiplier ────── 1.30 (Rush Hour)   │
+    │       ×                                     │
+    │   Occupancy Multiplier ─ 1.15 (High Demand) │
+    │       =                                     │
+    │   Effective Rate ─────── Rs. 74.75/hr       │
+    │                                             │
+    │   TIME TIERS:                               │
+    │   0AM-5AM  → 0.85 (Late Night -15%)        │
+    │   5AM-8AM  → 1.00 (Early Bird)             │
+    │   8AM-12PM → 1.20 (Morning Peak +20%)      │
+    │   12PM-5PM → 1.00 (Standard)               │
+    │   5PM-9PM  → 1.30 (Rush Hour +30%)  ←NOW   │
+    │   9PM-12AM → 0.90 (Night Discount -10%)    │
+    └─────────────────────────────────────────────┘
+
+================================================================================
+5. VISIBLE ON SCREEN
+================================================================================
+  Before confirming check-in, phone shows:
+  ┌──────────────────────────────────┐
+  │  💰 Current Parking Rate         │
+  │  ─────────────────────────────── │
+  │  Base Rate:    Rs. 50/hr         │
+  │  Time:         🔥 Rush Hour +30% │
+  │  Occupancy:    🟠 High +15%      │
+  │  ─────────────────────────────── │
+  │  Estimated:    Rs. 74.75/hr     │
+  └──────────────────────────────────┘
+
+
+================================================================================
+7. SAFETY GUARANTEES
+================================================================================
+  [?] Brand NEW endpoint /api/pricing � no existing endpoint modified
+  [?] Frontend fetch wrapped in try-catch � if it fails, card is hidden silently
+  [?] Does NOT block or delay the check-in flow � purely informational
+  [?] No external API or library needed � uses only existing SurgePricingService
+  [?] Does NOT touch: QR codes, entry.html, exit.html, slot selection logic
+
+================================================================================

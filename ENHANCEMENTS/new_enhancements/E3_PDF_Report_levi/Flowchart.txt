@@ -1,0 +1,136 @@
+════════════════════════════════════════════════════════════════
+  ENHANCEMENT 3: FLOWCHART
+  Owner: Rohit Harishchandre
+════════════════════════════════════════════════════════════════
+
+TEXT-BASED FLOW — PDF REPORT GENERATION
+───────────────────────────────────────
+
+  Admin clicks "📥 Download PDF"
+           │
+           ▼
+  ┌──────────────────────┐
+  │ Get selected month    │
+  │ and year from UI      │
+  └──────────┬───────────┘
+             │
+             ▼
+  ┌──────────────────────┐
+  │ Validate inputs       │
+  │ (month 1-12,          │
+  │  year 2000-2100)      │
+  └──────────┬───────────┘
+             │
+        ┌────┴────┐
+        │         │
+     Valid     Invalid
+        │         │
+        ▼         ▼
+  Background    Show error
+  thread        message
+        │
+        ▼
+  ┌──────────────────────────────┐
+  │ ReportDAO.getMonthlyFrequency│
+  │                              │
+  │ SQL: SELECT plate, phone,    │
+  │   type, COUNT(sessions)      │
+  │ FROM sessions JOIN vehicles  │
+  │ WHERE entry_time LIKE        │
+  │   '2026-04%'                 │
+  │ GROUP BY vehicle             │
+  │ ORDER BY count DESC          │
+  └──────────┬───────────────────┘
+             │
+        ┌────┴────┐
+        │         │
+    Has data   Empty
+        │         │
+        ▼         ▼
+  Build table  Show "No
+  with rows    records
+        │      found"
+        ▼         │
+  ┌──────────────────────────────┐
+  │ PdfReportService generates:  │
+  │                              │
+  │ ┌────────────────────────┐   │
+  │ │ SNAPPARK HEADER        │   │
+  │ │ Dark bg, cyan title    │   │
+  │ ├────────────────────────┤   │
+  │ │ # │ Vehicle │ Phone │..│   │
+  │ │ 1 │ MH12AB │ 98765 │..│   │
+  │ │ 2 │ KA01CD │ 87654 │..│   │
+  │ ├────────────────────────┤   │
+  │ │ TOTAL VISITS: 47       │   │
+  │ ├────────────────────────┤   │
+  │ │ Auto-generated footer  │   │
+  │ └────────────────────────┘   │
+  └──────────┬───────────────────┘
+             │
+             ▼
+  ┌──────────────────────┐
+  │ FileChooser dialog    │
+  │ "Save as..."          │
+  └──────────┬───────────┘
+             │
+        ┌────┴────┐
+        │         │
+     Saved    Cancelled
+        │         │
+        ▼         ▼
+  "Saved:      "Cancelled"
+   file.pdf"
+
+
+MERMAID DIAGRAM
+───────────────
+
+```mermaid
+flowchart TD
+    A["Admin clicks 📥 Download PDF"] --> B[Get month & year]
+    B --> C{Valid inputs?}
+    C -- No --> D[Show error]
+    C -- Yes --> E[Background thread starts]
+    E --> F["ReportDAO.getMonthlyFrequency()"]
+    F --> G["SQL: JOIN vehicles + sessions<br>GROUP BY vehicle<br>COUNT sessions per month"]
+    G --> H{Data found?}
+    H -- No --> I["PDF with 'No records found'"]
+    H -- Yes --> J["Build PDF table<br>(#, Vehicle, Phone, Type, Visits)"]
+    J --> K[Add total row + footer]
+    I --> L[PDF bytes ready]
+    K --> L
+    L --> M["FileChooser save dialog"]
+    M --> N["Save PDF to disk"]
+    N --> O["Status: 'Saved: filename.pdf'"]
+```
+
+
+ARCHITECTURE LAYERS
+───────────────────
+
+  ┌─────────────┐
+  │  FXML UI     │  analytics.fxml (ComboBoxes + Button)
+  └──────┬───────┘
+         │ @FXML onClick
+         ▼
+  ┌─────────────────┐
+  │ Controller       │  AnalyticsController.handleDownloadReport()
+  └──────┬───────────┘
+         │ calls
+         ▼
+  ┌─────────────────┐
+  │ Service          │  PdfReportService.generateMonthlyFrequencyReport()
+  └──────┬───────────┘
+         │ calls
+         ▼
+  ┌─────────────────┐
+  │ DAO              │  ReportDAO.getMonthlyFrequency()
+  └──────┬───────────┘
+         │ SQL query
+         ▼
+  ┌─────────────────┐
+  │ Database         │  parking_sessions JOIN vehicles
+  └─────────────────┘
+
+  Clean separation: UI → Controller → Service → DAO → DB

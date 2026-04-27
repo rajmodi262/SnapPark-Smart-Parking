@@ -1,0 +1,36 @@
+================================================================================
+  TEAM MEMBER: AADITYA SINHA
+  Role: Frontend & UI/UX Developer
+================================================================================
+
+PROJECT: SnapPark — Smart Parking Management System
+
+ROLE IN THE PROJECT:
+I designed and developed the mobile-first web interface using HTML, CSS,
+and Vanilla JavaScript. My primary focus was implementing the premium
+UI/UX features, integrating glassmorphism designs, and ensuring the
+interface was completely responsive for mobile screens.
+
+LEARNING FROM THE PROJECT:
+I learned how to build robust, purely responsive web applications without
+relying on heavy frontend frameworks. I deepened my understanding of
+modern CSS aesthetics, vanilla DOM manipulation, and utilizing asynchronous
+JavaScript (Fetch API) to seamlessly communicate with our Java backend.
+
+CHALLENGES FACED:
+Ensuring strict cross-browser compatibility and achieving a smooth, native
+"app-like" experience purely on a mobile browser was challenging.
+Additionally, integrating the QR-code-based flow into a frictionless
+mobile UI required extensive manual state management.
+
+ASSIGNED ENHANCEMENTS (3):
+  E04 — Live Cost Estimator Preview      (REST API + Frontend)
+  E05 — Occupancy Progress Bar           (Java JSON + CSS bar)
+  E06 — Live Parking Duration Timer      (LocalDateTime + JS timer)
+
+KEY FILES OWNED:
+  - snappark-web/app.js (28KB — mobile frontend logic)
+  - snappark-web/style.css
+  - snappark-web/entry.html, exit.html
+
+================================================================================

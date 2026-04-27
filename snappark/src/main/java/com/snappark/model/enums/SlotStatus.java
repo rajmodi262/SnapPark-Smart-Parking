@@ -1,2 +1,2 @@
 package com.snappark.model.enums;
-public enum SlotStatus { AVAILABLE, LOCKING, OCCUPIED }
+public enum SlotStatus { AVAILABLE, LOCKING, OCCUPIED, SHARED }

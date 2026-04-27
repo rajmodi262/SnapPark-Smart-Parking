@@ -61,6 +61,28 @@ public class SessionDAO {
         return null;
     }
 
+    /** Count how many active sessions exist for a given slot (0, 1, or 2 for shared slots) */
+    public int countActiveBySlot(int slotId) {
+        String sql = "SELECT COUNT(*) FROM parking_sessions WHERE slot_id = ? AND active = 1";
+        try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, slotId);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return rs.getInt(1);
+        } catch (SQLException e) { System.err.println(e.getMessage()); }
+        return 0;
+    }
+
+    /** Find the most recent COMPLETED session for a vehicle (for loyalty discount). */
+    public ParkingSession findLastCompletedByVehicle(int vehicleId) {
+        String sql = "SELECT * FROM parking_sessions WHERE vehicle_id = ? AND active = 0 AND exit_time IS NOT NULL ORDER BY exit_time DESC LIMIT 1";
+        try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, vehicleId);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return mapRow(rs);
+        } catch (SQLException e) { System.err.println(e.getMessage()); }
+        return null;
+    }
+
     public ParkingSession findActiveByVehicle(int vehicleId) {
         String sql = "SELECT * FROM parking_sessions WHERE vehicle_id = ? AND active = 1";
         try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {

@@ -6,7 +6,7 @@ import java.time.LocalTime;
 public class SurgePricingService {
     private static SurgePricingService instance;
     private SurgePricingService() {}
-    public static SurgePricingService getInstance() {
+    public static synchronized SurgePricingService getInstance() {
         if (instance == null) instance = new SurgePricingService();
         return instance;
     }

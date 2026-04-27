@@ -12,7 +12,7 @@ public class HeatmapService {
 
     private HeatmapService() {}
 
-    public static HeatmapService getInstance() {
+    public static synchronized HeatmapService getInstance() {
         if (instance == null) instance = new HeatmapService();
         return instance;
     }
@@ -34,7 +34,7 @@ public class HeatmapService {
     public Map<Integer, Integer> getRecentBookings(int days) {
         Map<Integer, Integer> counts = new HashMap<>();
         String sql = "SELECT slot_id, COUNT(*) as cnt FROM parking_sessions " +
-                     "WHERE entry_time >= datetime('now', '-" + days + " days') GROUP BY slot_id";
+                     "WHERE entry_time >= (NOW() - INTERVAL '" + days + " days')::TEXT GROUP BY slot_id";
         try (Connection conn = db.getConnection();
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {

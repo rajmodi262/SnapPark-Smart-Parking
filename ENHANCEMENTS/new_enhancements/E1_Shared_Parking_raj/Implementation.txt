@@ -1,0 +1,93 @@
+════════════════════════════════════════════════════════════════
+  ENHANCEMENT 1: IMPLEMENTATION STEPS
+  Owner: Aaditya Sinha
+════════════════════════════════════════════════════════════════
+
+STEP 1: Add SHARED Status to Enum
+──────────────────────────────────
+File: SlotStatus.java
+
+Added a new enum value "SHARED" to represent a slot that
+has one bike parked but has room for one more.
+
+Before: AVAILABLE, LOCKING, OCCUPIED
+After:  AVAILABLE, LOCKING, OCCUPIED, SHARED
+
+
+STEP 2: Count Active Sessions Per Slot (DAO Layer)
+──────────────────────────────────────────────────
+File: SessionDAO.java
+
+Added method: countActiveBySlot(int slotId)
+- Runs SQL: SELECT COUNT(*) FROM parking_sessions WHERE slot_id = ? AND active = 1
+- Returns 0, 1, or 2
+- Used to decide if slot can accept another bike
+
+Why this is needed:
+  A normal slot has 1 session. A shared slot can have 2.
+  We need to count before allowing the 2nd bike in.
+
+
+STEP 3: Add Shared Booking Logic (Service Layer)
+────────────────────────────────────────────────
+File: ParkingService.java
+
+3a. Modified lockSlot():
+    - Previously only allowed locking AVAILABLE slots
+    - Now also allows locking SHARED slots (for 2nd bike)
+
+3b. Added confirmSharedBooking(slotId, userId, existingSessions):
+    - If existingSessions == 0 → set status to SHARED
+    - If existingSessions == 1 → set status to OCCUPIED
+
+3c. Modified releaseSlot():
+    - Counts remaining active sessions after exit
+    - If 1 remaining → set SHARED
+    - If 0 remaining → set AVAILABLE
+
+3d. Added areBikeSlotsFull():
+    - Checks if any BIKE-type slot has AVAILABLE status
+    - Returns true only when ALL bike slots are taken
+
+
+STEP 4: Update Check-in API (WebServer)
+───────────────────────────────────────
+File: WebServer.java → handleCheckin()
+
+Added detection logic:
+  IF vehicle_type == BIKE AND selected_slot.type == CAR:
+    1. Check areBikeSlotsFull() → if false, reject with error
+    2. Count active sessions on that slot
+    3. If count >= 2, reject (slot full)
+    4. Set isSharedBooking = true
+    5. Call confirmSharedBooking() instead of confirmBooking()
+
+Added "sharedSlot" flag to the JSON response.
+
+
+STEP 5: Update Mobile UI (Frontend)
+───────────────────────────────────
+File: app.js
+
+5a. Slot Grid Rendering:
+    - When bikeSlotsFull == true, CAR slots with AVAILABLE/SHARED
+      status get purple borders and 🏍️×2 badge
+    - Added "Shared" to the legend with purple dot
+
+5b. Banner:
+    - Shows purple gradient banner:
+      "Bike slots full! You can share a Car slot"
+
+5c. Click Binding:
+    - Added .shared-available class to clickable slots
+
+5d. Confirmation Screen:
+    - Shows "SHARED SLOT — You are sharing a Car slot"
+
+
+STEP 6: Verify
+──────────────
+- mvn clean compile → BUILD SUCCESS
+- Tested: Park 5 bikes → 6th bike sees purple slots
+- Park 2 bikes in 1 car slot → slot becomes OCCUPIED
+- Exit 1 bike → slot returns to SHARED

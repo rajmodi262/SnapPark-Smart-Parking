@@ -7,7 +7,7 @@ import java.util.stream.Collectors;
 public class SlotRecommendationService {
     private static SlotRecommendationService instance;
     private SlotRecommendationService() {}
-    public static SlotRecommendationService getInstance() {
+    public static synchronized SlotRecommendationService getInstance() {
         if (instance == null) instance = new SlotRecommendationService();
         return instance;
     }

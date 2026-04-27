@@ -1,0 +1,15 @@
+ENHANCEMENT E06 — LIVE PARKING DURATION TIMER
+Member: Aaditya Sinha
+=================================================
+
+PROMPT (Copy-paste this directly):
+
+"In my SnapPark project at c:\Users\Raj Modi\Pictures\snappark, add a live parking duration timer to the check-in success screen. In WebServer.java, in the checkin success JSON response, ADD a new field 'entryTime' with the ISO format timestamp (LocalDateTime.now().toString()). Do NOT remove or rename any existing fields. Then in the mobile app.js (both snappark-web/app.js and src/main/resources/com/snappark/mobile/app.js), in the doCheckin success handler, check if data.entryTime exists. If it does, parse it and start a JavaScript setInterval timer that updates every second showing 'Parked: HH:MM:SS'. Display this timer on the success/confirmation screen with a clock emoji. Add inline CSS for a large font with subtle pulsing opacity animation.
+
+CRITICAL SAFETY RULES:
+- Only ADD the 'entryTime' field to the existing JSON response — do NOT change or remove any existing fields.
+- The timer code must check if data.entryTime exists before starting — if missing, skip silently.
+- Do NOT modify the check-in flow, slot selection, or any validation logic.
+- Do NOT touch entry.html, exit.html, style.css, or QR code logic.
+- Do NOT require any external API or library.
+- Test by running mvn clean compile to verify no build errors."

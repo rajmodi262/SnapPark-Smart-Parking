@@ -20,7 +20,7 @@ public class QRCodeService {
 
     private QRCodeService() {}
 
-    public static QRCodeService getInstance() {
+    public static synchronized QRCodeService getInstance() {
         if (instance == null) instance = new QRCodeService();
         return instance;
     }

@@ -1,0 +1,147 @@
+════════════════════════════════════════════════════════════════
+  ENHANCEMENT 3: CODE DELTA (Original vs Enhanced)
+  Owner: Rohit Harishchandre
+════════════════════════════════════════════════════════════════
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 1: pom.xml — NEW DEPENDENCY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ENHANCED — Added after jBCrypt:
+  <!-- OpenPDF for PDF report generation -->
+  <dependency>
+      <groupId>com.github.librepdf</groupId>
+      <artifactId>openpdf</artifactId>
+      <version>1.3.30</version>
+  </dependency>
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 2: VehicleFrequencyRow.java — NEW FILE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  public class VehicleFrequencyRow {
+      private final String licensePlate;
+      private final String phoneNumber;
+      private final String vehicleType;
+      private final int    frequency;
+
+      // Constructor + 4 getters
+  }
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 3: ReportDAO.java — NEW FILE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  public class ReportDAO {
+      public List<VehicleFrequencyRow> getMonthlyFrequency(int year, int month) {
+          String monthPrefix = String.format("%04d-%02d", year, month);
+
+          String sql = "SELECT v.license_plate, v.phone_number, "
+                     + "v.vehicle_type, COUNT(ps.id) AS freq "
+                     + "FROM parking_sessions ps "
+                     + "JOIN vehicles v ON v.id = ps.vehicle_id "
+                     + "WHERE ps.entry_time LIKE ? "
+                     + "GROUP BY v.id, v.license_plate, v.phone_number, "
+                     + "v.vehicle_type "
+                     + "ORDER BY freq DESC, v.license_plate ASC";
+
+          ps.setString(1, monthPrefix + "%");
+          // ... execute and map to VehicleFrequencyRow list
+      }
+  }
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 4: PdfReportService.java — NEW FILE (Key Sections)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  // Branded Colors
+  Color HEADER_BG   = new Color(13, 21, 37);   // Dark navy
+  Color ACCENT_CYAN = new Color(0, 194, 255);  // SnapPark cyan
+
+  public byte[] generateMonthlyFrequencyReport(int year, int month) {
+      List<VehicleFrequencyRow> rows = reportDAO.getMonthlyFrequency(year, month);
+
+      Document doc = new Document(PageSize.A4, 40, 40, 40, 40);
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
+      PdfWriter.getInstance(doc, baos);
+      doc.open();
+
+      // 1. Add branded header with title + metadata
+      // 2. Add data table with 5 columns
+      // 3. Add total row with green background
+      // 4. Add footer
+      // 5. Handle empty data gracefully
+
+      doc.close();
+      return baos.toByteArray();
+  }
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 5: WebServer.java — NEW ENDPOINT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ENHANCED — Registration:
+  server.createContext("/api/report/frequency", this::handleFrequencyReport);
+
+ENHANCED — Handler:
+  private void handleFrequencyReport(HttpExchange ex) {
+      Map<String, String> params = parseQuery(ex.getRequestURI().getQuery());
+      int year  = Integer.parseInt(params.get("year"));
+      int month = Integer.parseInt(params.get("month"));
+
+      // Validate year/month
+      byte[] pdf = pdfReportService.generateMonthlyFrequencyReport(year, month);
+
+      ex.getResponseHeaders().set("Content-Type", "application/pdf");
+      ex.getResponseHeaders().set("Content-Disposition",
+          "attachment; filename=\"vehicle-frequency-report-2026-04.pdf\"");
+      ex.sendResponseHeaders(200, pdf.length);
+      ex.getResponseBody().write(pdf);
+  }
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 6: AnalyticsController.java — ENHANCED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ORIGINAL: Only had chart loading (loadStats, loadBarChart, loadPieChart)
+
+ENHANCED — Added:
+  @FXML private ComboBox<String> reportMonth;
+  @FXML private ComboBox<String> reportYear;
+  @FXML private Label reportStatus;
+
+  @FXML public void handleDownloadReport() {
+      int month = reportMonth.getSelectionModel().getSelectedIndex() + 1;
+      int year = Integer.parseInt(reportYear.getValue());
+
+      new Thread(() -> {
+          byte[] pdf = pdfService.generateMonthlyFrequencyReport(year, month);
+          Platform.runLater(() -> {
+              FileChooser fc = new FileChooser();
+              fc.setInitialFileName("vehicle-frequency-report-...");
+              File file = fc.showSaveDialog(stage);
+              fos.write(pdf);  // Save to file
+          });
+      }).start();
+  }
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 7: analytics.fxml — ENHANCED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ENHANCED — Added after charts:
+  <VBox spacing="10">
+      <Label text="📄 Monthly Vehicle Frequency Report"/>
+      <HBox spacing="12" style="-fx-background-color:#111621;">
+          <ComboBox fx:id="reportMonth" promptText="Month"/>
+          <ComboBox fx:id="reportYear" promptText="Year"/>
+          <Button text="📥 Download PDF" onAction="#handleDownloadReport"/>
+          <Label fx:id="reportStatus"/>
+      </HBox>
+  </VBox>

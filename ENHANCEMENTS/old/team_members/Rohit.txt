@@ -1,0 +1,37 @@
+================================================================================
+  TEAM MEMBER: ROHIT
+  Role: JavaFX Desktop & Kiosk Developer
+================================================================================
+
+PROJECT: SnapPark — Smart Parking Management System
+
+ROLE IN THE PROJECT:
+I designed and implemented the JavaFX desktop kiosk application. I handled
+the frontend development of the physical terminal by building FXML layouts,
+binding the Java controllers, and creating the interactive graphical flow
+for physical entry and exit points.
+
+LEARNING FROM THE PROJECT:
+I mastered JavaFX UI components, FXML styling, and the MVC design pattern
+in the context of desktop applications. I discovered how to link visual
+elements to backend services and map hardware-like interactions to a
+graphical interface.
+
+CHALLENGES FACED:
+Designing a desktop UI that scales perfectly to fullscreen across different
+monitor resolutions was a hurdle. Additionally, preventing UI freezes
+during heavy background operations required careful implementation of
+JavaFX Task and Platform.runLater() multithreading.
+
+ASSIGNED ENHANCEMENTS (3):
+  E07 — Lot Almost Full Kiosk Banner     (JavaFX Timeline, Threshold)
+  E08 — Color-Coded Duration Slots       (Duration API, CSS Styling)
+  E09 — Live Stats Header on Kiosk       (ScheduledExecutor, runLater)
+
+KEY FILES OWNED:
+  - KioskParkController.java (47KB)
+  - KioskWelcomeController.java (20KB)
+  - KioskExitController.java (19KB)
+  - ParkingGrid3DController.java (26KB)
+
+================================================================================

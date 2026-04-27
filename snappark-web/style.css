@@ -106,9 +106,9 @@ body::before {
 .app-container {
   position: relative;
   z-index: 1;
-  max-width: 480px;
+  max-width: 520px;
   margin: 0 auto;
-  padding: 0 16px 40px;
+  padding: 0 12px 40px;
   min-height: 100vh;
 }
 
@@ -365,74 +365,81 @@ body::before {
 
 /* ─── Slot Grid ─── */
 .floor-section {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .floor-title {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 1.5px;
   text-transform: uppercase;
   color: var(--text-secondary);
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
 }
 
 .slot-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 6px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
 }
 
 .slot-cell {
   aspect-ratio: 1;
-  border-radius: var(--radius-sm);
+  border-radius: 10px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: 0.7rem;
+  font-size: 0.85rem;
   font-weight: 700;
   cursor: pointer;
   transition: all var(--transition);
-  border: 1.5px solid var(--border);
+  border: 2px solid var(--border);
   background: var(--bg-elevated);
   position: relative;
   overflow: hidden;
+  min-height: 64px;
 }
 
 .slot-cell .slot-num {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.7rem;
+  font-size: 0.85rem;
   z-index: 1;
+  letter-spacing: 0.5px;
 }
 
 .slot-cell .slot-icon {
-  font-size: 0.6rem;
-  margin-top: 2px;
+  font-size: 0.75rem;
+  margin-top: 3px;
   z-index: 1;
 }
 
 /* Available */
 .slot-cell.available {
-  border-color: rgba(0, 255, 136, 0.25);
+  border-color: rgba(0, 255, 136, 0.3);
   color: var(--accent-green);
+  background: rgba(0, 255, 136, 0.04);
 }
 
 .slot-cell.available:hover {
-  background: rgba(0, 255, 136, 0.08);
+  background: rgba(0, 255, 136, 0.1);
   border-color: var(--accent-green);
-  transform: scale(1.08);
+  transform: scale(1.06);
+  box-shadow: 0 4px 16px rgba(0, 255, 136, 0.15);
 }
 
 /* Occupied */
 .slot-cell.occupied {
-  border-color: rgba(255, 34, 68, 0.2);
+  border-color: rgba(255, 34, 68, 0.25);
   color: var(--accent-red);
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
+  background: rgba(255, 34, 68, 0.03);
 }
 
 /* Locked */
@@ -440,6 +447,7 @@ body::before {
   border-color: rgba(255, 184, 0, 0.3);
   color: var(--accent-amber);
   cursor: not-allowed;
+  background: rgba(255, 184, 0, 0.03);
 }
 
 /* Selected */
@@ -448,16 +456,17 @@ body::before {
   border-color: var(--accent-cyan);
   color: var(--accent-cyan);
   animation: pulse 1.5s ease-in-out infinite;
-  box-shadow: 0 0 20px rgba(0,194,255,0.2);
+  box-shadow: 0 0 24px rgba(0,194,255,0.25);
+  border-width: 2.5px;
 }
 
 /* Recommended */
 .slot-cell.recommended::after {
   content: '⭐';
   position: absolute;
-  top: 2px;
-  right: 2px;
-  font-size: 0.5rem;
+  top: 3px;
+  right: 3px;
+  font-size: 0.6rem;
 }
 
 /* Heatmap overlay */
@@ -469,22 +478,28 @@ body::before {
   pointer-events: none;
 }
 
-/* Filtered-out slots */
+/* Filtered-out slots — hidden on mobile, faded on desktop */
 .slot-cell.filtered-out {
-  opacity: 0.2;
-  cursor: not-allowed;
+  display: none;
 }
 
 /* Zone label */
 .zone-label {
   grid-column: 1 / -1;
   text-align: center;
-  font-size: 0.65rem;
-  letter-spacing: 1px;
-  color: var(--text-muted);
-  padding: 4px 0;
+  font-size: 0.7rem;
+  letter-spacing: 1.5px;
+  color: var(--text-secondary);
+  padding: 8px 0 4px;
   text-transform: uppercase;
-  font-weight: 600;
+  font-weight: 700;
+  border-top: 1px dashed rgba(33, 38, 45, 0.6);
+  margin-top: 4px;
+}
+
+.zone-label:first-child {
+  border-top: none;
+  margin-top: 0;
 }
 
 /* ─── Recommendation Cards ─── */
@@ -1044,14 +1059,76 @@ body::before {
 /* ─── Responsive Touch ─── */
 @media (hover: none) {
   .slot-cell:active.available {
-    background: rgba(0, 255, 136, 0.12);
-    transform: scale(0.95);
+    background: rgba(0, 255, 136, 0.15);
+    transform: scale(0.93);
+    border-color: var(--accent-green);
+  }
+  .slot-cell:active.selected {
+    transform: scale(0.93);
   }
 }
 
+/* ─── Mobile: Standard Phones (≤520px) ─── */
+@media (max-width: 520px) {
+  .app-container {
+    padding: 0 10px 32px;
+  }
+  .card {
+    padding: 18px;
+  }
+  .slot-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .slot-cell {
+    min-height: 68px;
+    border-radius: 10px;
+  }
+  .slot-cell .slot-num {
+    font-size: 0.9rem;
+  }
+  .slot-cell .slot-icon {
+    font-size: 0.8rem;
+  }
+}
+
+/* ─── Small Phones (≤380px) ─── */
 @media (max-width: 380px) {
-  .slot-grid { grid-template-columns: repeat(5, 1fr); gap: 4px; }
-  .slot-cell .slot-num { font-size: 0.6rem; }
+  .app-container {
+    padding: 0 8px 28px;
+  }
+  .card {
+    padding: 14px;
+  }
+  .slot-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .slot-cell {
+    min-height: 72px;
+    border-radius: 10px;
+  }
+  .slot-cell .slot-num {
+    font-size: 0.9rem;
+  }
+  .slot-cell .slot-icon {
+    font-size: 0.85rem;
+  }
+  .floor-title {
+    font-size: 0.75rem;
+  }
   .pin-digit { font-size: 2rem; }
   .pin-display { padding: 14px 20px; gap: 6px; }
+}
+
+/* ─── Larger screens show filtered slots faded ─── */
+@media (min-width: 521px) {
+  .slot-cell.filtered-out {
+    display: flex;
+    opacity: 0.15;
+    cursor: not-allowed;
+  }
+  .slot-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
 }

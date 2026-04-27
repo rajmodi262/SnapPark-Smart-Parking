@@ -45,4 +45,21 @@
                       labelsVisible="true"/>
         </VBox>
     </HBox>
+
+    <!-- Monthly Frequency Report Download -->
+    <VBox spacing="10" style="-fx-padding:0 24 20 24;">
+        <Label text="📄 Monthly Vehicle Frequency Report"
+               style="-fx-text-fill:#94a3b8;-fx-font-size:12px;-fx-font-weight:bold;"/>
+        <HBox spacing="12" alignment="CENTER_LEFT"
+              style="-fx-background-color:#111621;-fx-border-color:#1e2d47;-fx-border-width:1;-fx-background-radius:10;-fx-border-radius:10;-fx-padding:14;">
+            <ComboBox fx:id="reportMonth" promptText="Month" prefWidth="160"
+                      style="-fx-background-color:#1e293b;-fx-text-fill:#e2e8f0;-fx-font-size:12px;"/>
+            <ComboBox fx:id="reportYear" promptText="Year" prefWidth="100"
+                      style="-fx-background-color:#1e293b;-fx-text-fill:#e2e8f0;-fx-font-size:12px;"/>
+            <Button text="📥 Download PDF" onAction="#handleDownloadReport"
+                    style="-fx-background-color:#7c3aed;-fx-text-fill:white;-fx-font-size:12px;-fx-font-weight:bold;-fx-background-radius:8;-fx-cursor:hand;-fx-padding:8 16;"/>
+            <Label fx:id="reportStatus" text=""
+                   style="-fx-text-fill:#4ade80;-fx-font-size:11px;-fx-font-family:monospace;"/>
+        </HBox>
+    </VBox>
 </VBox>

@@ -1,0 +1,166 @@
+================================================================================
+                    SNAPPARK — 12 ENHANCEMENTS MASTER LIST
+               Java Practical Evaluation — Enhancement Catalog
+================================================================================
+
+Each enhancement involves Java backend changes and is VISIBLE on the running
+project screen. Time to implement: 2-3 minutes each.
+
+================================================================================
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  RAJ MODI — Backend Java & API Developer
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  E01: SERVER HEALTH CHECK DASHBOARD                                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  WHAT:    Add /api/health REST endpoint returning live server diagnostics  │
+│  WHY:     Production systems NEED monitoring — shows DevOps awareness      │
+│  JAVA:    HashMap, Runtime.getRuntime(), System.currentTimeMillis()        │
+│  VISIBLE: Open /api/health in browser → JSON with uptime, memory, DB,     │
+│           slot counts, active sessions — all live data                     │
+│  BENEFIT: Faculty sees you understand server monitoring & system health    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  E02: VEHICLE RE-ENTRY PREVENTION                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  WHAT:    Block same license plate from checking in when already parked    │
+│  WHY:     Prevents duplicate bookings & data corruption                    │
+│  JAVA:    JDBC PreparedStatement, Conditional logic, Custom error JSON     │
+│  VISIBLE: Try same plate twice → phone shows red error:                    │
+│           "Vehicle MH12AB1234 is already parked in Slot B-03!"             │
+│  BENEFIT: Shows data integrity enforcement — a critical real-world need    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  E03: API REQUEST RATE LIMITER                                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  WHAT:    Limit each IP to max 30 requests per minute                     │
+│  WHY:     Prevents brute-force attacks & API abuse                        │
+│  JAVA:    ConcurrentHashMap, AtomicInteger, System.currentTimeMillis()     │
+│  VISIBLE: Spam check-in button 30+ times → phone shows:                   │
+│           "Too many requests. Please wait 60 seconds."                     │
+│  BENEFIT: Shows security awareness — rate limiting is industry standard    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  AADITYA SINHA — Frontend & UI/UX Developer
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  E04: LIVE COST ESTIMATOR PREVIEW                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  WHAT:    Show estimated hourly rate with surge info before check-in       │
+│  WHY:     Users should know the price BEFORE committing to park            │
+│  JAVA:    New /api/pricing endpoint, SurgePricingService.getBreakdown()    │
+│  VISIBLE: Before confirming → card shows:                                  │
+│           "Estimated: Rs.65/hr (Rush Hour +30%)"                           │
+│  BENEFIT: Shows business logic integration — dynamic pricing transparency  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  E05: OCCUPANCY PROGRESS BAR                                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  WHAT:    Show animated fill percentage bar on mobile slot selection       │
+│  WHY:     Users need a quick visual indicator of parking lot capacity      │
+│  JAVA:    Occupancy % calculation added to /api/slots JSON response        │
+│  VISIBLE: Top of phone screen → colored bar:                               │
+│           "67% Full ████████░░░" (green→yellow→red as it fills)            │
+│  BENEFIT: Shows real-time data visualization — professional UX design      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  E06: LIVE PARKING DURATION TIMER                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  WHAT:    After check-in, show a live counting timer on the success page   │
+│  WHY:     Users want to know exactly how long they've been parked          │
+│  JAVA:    Return entryTime in check-in JSON response (LocalDateTime)       │
+│  VISIBLE: After check-in → phone shows a live ticker:                      │
+│           "Parked: 00:15:32" counting up every second                      │
+│  BENEFIT: Shows Java datetime handling + real-time frontend integration    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ROHIT — JavaFX Desktop & Kiosk Developer
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  E07: "LOT ALMOST FULL" KIOSK BANNER                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  WHAT:    Show flashing red warning on kiosk when occupancy > 85%         │
+│  WHY:     Kiosk must warn staff and drivers about capacity limits          │
+│  JAVA:    Threshold logic in ParkingService, JavaFX Label with Timeline   │
+│  VISIBLE: Kiosk screen shows flashing red banner:                          │
+│           "WARNING: LOT ALMOST FULL — Only 4 spots left!"                  │
+│  BENEFIT: Shows event-driven UI + threshold-based alerting in JavaFX       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  E08: COLOR-CODED DURATION SLOTS ON KIOSK                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  WHAT:    Color kiosk slots based on how long cars have been parked        │
+│  WHY:     Helps identify long-stayers vs short-stayers at a glance         │
+│  JAVA:    Duration.between(), enum-based color mapping, JavaFX CSS         │
+│  VISIBLE: Kiosk grid shows slots in 3 colors:                              │
+│           Green (<1hr) | Yellow (1-3hr) | Red (>3hr)                       │
+│  BENEFIT: Shows Java Duration API + visual data classification             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  E09: LIVE STATS HEADER ON KIOSK                                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  WHAT:    Show today's vehicle count, revenue, and peak hour on kiosk      │
+│  WHY:     Parking lot owner needs a real-time operational overview          │
+│  JAVA:    AnalyticsService queries, ScheduledExecutorService, runLater()   │
+│  VISIBLE: Kiosk top bar shows:                                             │
+│           "Today: 47 vehicles | Revenue: Rs.12,350 | Peak: 2PM-4PM"       │
+│  BENEFIT: Shows scheduled tasks + real-time JavaFX data binding            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  LEVINESH GR — Database Architect & System Integrator
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  E10: DATABASE CONNECTION LOGGER                                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  WHAT:    Log every DB connection open/close with timestamp to console     │
+│  WHY:     Helps debug connection leaks and monitor DB pool health          │
+│  JAVA:    java.util.logging.Logger, SimpleDateFormat, String.format()     │
+│  VISIBLE: Server console shows timestamped lines:                          │
+│           "[DB] 14:32:05 — Connection OPENED (pool: 3/5 active)"          │
+│  BENEFIT: Shows Java Logging API and formatted output — real DevOps need  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  E11: LAST PARKED VEHICLE INFO ENDPOINT                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  WHAT:    Add /api/last-parked returning the most recent check-in details  │
+│  WHY:     Quick glance at the latest entry — useful for kiosk operators    │
+│  JAVA:    JDBC PreparedStatement, ORDER BY + LIMIT 1, HashMap response    │
+│  VISIBLE: Open /api/last-parked in browser → JSON:                         │
+│           {"plate":"MH12AB34","slot":"B-03","time":"14:32","type":"CAR"}   │
+│  BENEFIT: Shows SQL ordering, LIMIT clause, and JSON construction         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  E12: ACTIVE SESSIONS COUNT BADGE                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  WHAT:    Add /api/active-count returning the number of active sessions    │
+│  WHY:     Provides a quick occupancy snapshot for dashboards and admins    │
+│  JAVA:    SQL COUNT(*) with WHERE clause, simple JSON response             │
+│  VISIBLE: Open /api/active-count in browser → JSON:                        │
+│           {"active_sessions": 12, "timestamp": "2026-04-27T14:32:05"}     │
+│  BENEFIT: Shows SQL aggregate functions + simple REST endpoint design      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+                           END OF ENHANCEMENT CATALOG
+================================================================================

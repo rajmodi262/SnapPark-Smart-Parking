@@ -1,0 +1,136 @@
+════════════════════════════════════════════════════════════════
+  ENHANCEMENT 4: FLOWCHART
+  Owner: Levinesh G R
+════════════════════════════════════════════════════════════════
+
+TEXT-BASED FLOW — CAR OVERFLOW TO SUV
+─────────────────────────────────────
+
+  User selects CAR type
+         │
+         ▼
+  ┌─────────────────┐
+  │ Are car slots    │──── NO ───→ Show only CAR slots (normal)
+  │ full?            │
+  └────────┬─────────┘
+           │ YES
+           ▼
+  ┌──────────────────────────┐
+  │ Show ORANGE banner:       │
+  │ "Car slots full!          │
+  │  Use an SUV slot instead  │
+  │  — charged at Car rate"   │
+  │                           │
+  │ Light up SUV slots with   │
+  │ orange borders + 🚗 badge │
+  └────────┬─────────────────┘
+           │
+           ▼
+  User selects an SUV slot
+           │
+           ▼
+  ┌──────────────────────────┐
+  │ Backend validates:        │
+  │ areCarSlotsFull() == true │
+  └────────┬─────────────────┘
+           │
+     ┌─────┴─────┐
+     │            │
+   True        False
+     │            │
+     ▼            ▼
+  ALLOW        REJECT
+  booking      "Car slots
+  (normal)     still available"
+     │
+     ▼
+  ┌──────────────────────────┐
+  │ lockSlot → confirmBooking │
+  │ → startSession            │
+  │                           │
+  │ Status: AVAILABLE →       │
+  │         OCCUPIED          │
+  │                           │
+  │ Rate: CAR rate            │
+  │ (not SUV rate!)           │
+  └────────┬─────────────────┘
+           │
+           ▼
+  ┌──────────────────────────┐
+  │ Confirmation shows:       │
+  │ "OVERFLOW — Using SUV     │
+  │  slot at Car rate"        │
+  └──────────────────────────┘
+
+
+EXIT FLOW (Same as Normal)
+──────────────────────────
+
+  Car exits SUV slot
+         │
+         ▼
+  ┌──────────────────────────┐
+  │ releaseSlot()             │
+  │ countActiveBySlot = 0     │
+  │ → Set AVAILABLE           │
+  │                           │
+  │ Bill calculated at CAR    │
+  │ rate (vehicle type based) │
+  └──────────────────────────┘
+
+
+MERMAID DIAGRAM
+───────────────
+
+```mermaid
+flowchart TD
+    A[User selects CAR type] --> B{All car slots full?}
+    B -- No --> C[Show normal CAR slots only]
+    B -- Yes --> D["Show ORANGE banner + SUV slots with 🚗 badges"]
+    D --> E[User clicks an SUV slot]
+    E --> F{"Backend: areCarSlotsFull()?"}
+    F -- No --> G["REJECT: Car slots still available"]
+    F -- Yes --> H[Allow overflow booking]
+    H --> I["lockSlot → confirmBooking<br>(normal AVAILABLE → OCCUPIED)"]
+    I --> J["Rate = CAR rate (not SUV!)"]
+    J --> K["Confirmation: OVERFLOW notice"]
+
+    L[Car exits] --> M["releaseSlot → AVAILABLE"]
+    M --> N["Bill at CAR rate ✓"]
+```
+
+
+COMPARISON: E1 vs E4
+─────────────────────
+
+```mermaid
+flowchart LR
+    subgraph E1["E1: Bike Shared Slot"]
+        direction TB
+        A1[BIKE slots full] --> B1[Show CAR slots in PURPLE]
+        B1 --> C1["2 bikes per CAR slot"]
+        C1 --> D1["AVAILABLE → SHARED → OCCUPIED"]
+    end
+
+    subgraph E4["E4: Car Overflow"]
+        direction TB
+        A4[CAR slots full] --> B4[Show SUV slots in ORANGE]
+        B4 --> C4["1 car per SUV slot"]
+        C4 --> D4["AVAILABLE → OCCUPIED"]
+    end
+```
+
+
+PRICING FLOW
+────────────
+
+  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+  │ Vehicle Type │    │  Slot Type   │    │  Rate Used   │
+  ├──────────────┤    ├──────────────┤    ├──────────────┤
+  │ CAR          │    │ CAR          │    │ CAR rate ✓   │
+  │ CAR          │    │ SUV (overflow│    │ CAR rate ✓   │
+  │ SUV          │    │ SUV          │    │ SUV rate ✓   │
+  └──────────────┘    └──────────────┘    └──────────────┘
+
+  Rate is ALWAYS determined by vehicle type, never slot type.
+  This is why no pricing code change was needed!
