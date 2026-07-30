@@ -1,0 +1,34 @@
+name: SnapPark CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-test:
+    # Windows runner matches the JavaFX 'win' native classifier in the POM.
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: snappark
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build and run unit tests with coverage
+        run: mvn -B test
+
+      - name: Upload JaCoCo coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: snappark/target/site/jacoco/
